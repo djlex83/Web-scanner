@@ -56,6 +56,8 @@ export interface Stueck {
   bewegt_am: string | null;
   bewegt_von: string | null;
   erstellt_am: string;
+  /** null = kein Foto; sonst Version für die Bild-Adresse */
+  foto_version: number | null;
 }
 
 export interface Buchung {

@@ -30,6 +30,25 @@
   --gefahr-text: oklch(0.48 0.19 25);
   --schatten: 0 1px 2px oklch(0.2 0.02 268 / 0.06), 0 4px 16px -4px oklch(0.2 0.02 268 / 0.08);
   --schatten-hoch: 0 12px 40px -8px oklch(0.2 0.03 268 / 0.25);
+  /* Kategorie-Farben (Hintergrund / Symbol) */
+  --kat-grau-bg: oklch(0.93 0.008 264);
+  --kat-grau-fg: oklch(0.45 0.02 264);
+  --kat-blau-bg: oklch(0.94 0.045 255);
+  --kat-blau-fg: oklch(0.48 0.15 255);
+  --kat-gruen-bg: oklch(0.94 0.045 150);
+  --kat-gruen-fg: oklch(0.48 0.15 150);
+  --kat-gelb-bg: oklch(0.94 0.045 85);
+  --kat-gelb-fg: oklch(0.47 0.12 85);
+  --kat-orange-bg: oklch(0.94 0.045 50);
+  --kat-orange-fg: oklch(0.48 0.15 50);
+  --kat-rot-bg: oklch(0.94 0.045 25);
+  --kat-rot-fg: oklch(0.48 0.15 25);
+  --kat-lila-bg: oklch(0.94 0.045 300);
+  --kat-lila-fg: oklch(0.48 0.15 300);
+  --kat-pink-bg: oklch(0.94 0.045 350);
+  --kat-pink-fg: oklch(0.48 0.15 350);
+  --kat-tuerkis-bg: oklch(0.94 0.045 195);
+  --kat-tuerkis-fg: oklch(0.48 0.15 195);
   color-scheme: light;
 }
 
@@ -57,6 +76,24 @@
   --gefahr-text: oklch(0.82 0.12 25);
   --schatten: 0 1px 2px oklch(0 0 0 / 0.3), 0 4px 16px -4px oklch(0 0 0 / 0.35);
   --schatten-hoch: 0 12px 40px -8px oklch(0 0 0 / 0.6);
+  --kat-grau-bg: oklch(0.3 0.012 264);
+  --kat-grau-fg: oklch(0.82 0.015 264);
+  --kat-blau-bg: oklch(0.32 0.07 255);
+  --kat-blau-fg: oklch(0.84 0.11 255);
+  --kat-gruen-bg: oklch(0.32 0.07 150);
+  --kat-gruen-fg: oklch(0.84 0.11 150);
+  --kat-gelb-bg: oklch(0.32 0.07 85);
+  --kat-gelb-fg: oklch(0.84 0.11 85);
+  --kat-orange-bg: oklch(0.32 0.07 50);
+  --kat-orange-fg: oklch(0.84 0.11 50);
+  --kat-rot-bg: oklch(0.32 0.07 25);
+  --kat-rot-fg: oklch(0.84 0.11 25);
+  --kat-lila-bg: oklch(0.32 0.07 300);
+  --kat-lila-fg: oklch(0.84 0.11 300);
+  --kat-pink-bg: oklch(0.32 0.07 350);
+  --kat-pink-fg: oklch(0.84 0.11 350);
+  --kat-tuerkis-bg: oklch(0.32 0.07 195);
+  --kat-tuerkis-fg: oklch(0.84 0.11 195);
   color-scheme: dark;
 }
 

@@ -1,4 +1,4 @@
-import { ChevronRight, DatabaseBackup, History, KeyRound, LogOut, Monitor, Moon, Sun, UserRound, Users } from "lucide-react";
+import { ChevronRight, DatabaseBackup, History, KeyRound, LogOut, Monitor, Moon, Shapes, Sun, UserRound, Users } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router";
 import { fehlerText, senden } from "../lib/api";
@@ -159,6 +159,7 @@ export function Mehr() {
       <Liste>
         <Zeile symbol={<UserRound />} titel={ich.name} unter="Mein Konto und Einstellungen" zu="/konto" />
         <Zeile symbol={<History />} titel="Protokoll" unter="Bewegungen und Aktionen" zu="/protokoll" />
+        {darf("stuecke_verwalten") && <Zeile symbol={<Shapes />} titel="Kategorien" unter="Symbole und Farben festlegen" zu="/kategorien" />}
         {darf("benutzer_verwalten") && <Zeile symbol={<Users />} titel="Benutzer" unter="Konten und Rollen verwalten" zu="/benutzer" />}
       </Liste>
       <p className="text-center text-[13px] text-gedaempft">

@@ -18,6 +18,7 @@ Web-App für Handy, Tablet und PC. Läuft im **kostenlosen Tarif von Cloudflare*
   - [4. Scannen: „Wo ist …?“ und „Einlagern“](#4-scannen-wo-ist--und-einlagern)
   - [5. Bestand und Protokoll](#5-bestand-und-protokoll)
   - [6. Benutzer verwalten](#6-benutzer-verwalten)
+- [Fotos und Kategorie-Symbole](#fotos-und-kategorie-symbole)
 - [Passwort ändern oder vergessen](#passwort-ändern-oder-vergessen)
 - [Rollen](#rollen)
 - [Am PC](#am-pc)
@@ -36,6 +37,8 @@ Web-App für Handy, Tablet und PC. Läuft im **kostenlosen Tarif von Cloudflare*
 | ⌨️ **Handscanner & Eintippen** | USB-/Bluetooth-Handscanner und manuelle Eingabe funktionieren genauso. |
 | 📍 **„Wo ist …?“** | Zu jedem gescannten Stück: Abteilung › Regal, wann und von wem zuletzt bewegt. |
 | 📦 **Einlagern / Umbuchen** | Regal-Etikett scannen → Stücke scannen → ein Tipp. Alles oder nichts. |
+| 📸 **Fotos** | Foto beim Erfassen oder später aufnehmen – wird automatisch verkleinert und als Vorschaubild überall angezeigt. |
+| 🎨 **Kategorie-Symbole** | Jede Kategorie bekommt automatisch ein passendes Symbol und eine Farbe; die Leitung kann beides ändern. |
 | ➕ **Direkt erfassen** | Unbekannter Code? Name eingeben – das Stück liegt sofort im gescannten Regal. |
 | 🏷️ **QR-Etiketten** | Für Regale und Abteilungen, auf A4-Bögen (21 oder 8 pro Seite). |
 | 🔎 **Bestand** | Suche nach Name, Code, Kategorie; Filter „ohne Platz“, „defekt“, „ausgemustert“. |
@@ -90,6 +93,25 @@ Admins legen unter **Benutzer** neue Konten an und vergeben die Rolle. Die App e
 
 ---
 
+## Fotos und Kategorie-Symbole
+
+![Bestand mit Fotos und Symbolen, Foto am Stück, Kategorie-Einstellungen](docs/bilder/fotos.png)
+
+**Fotos**
+- Beim **Erfassen** eines neuen Stücks („Foto aufnehmen“) oder später auf der **Stück-Seite** („Foto“ / „Neues Foto“). Das öffnet direkt die Kamera; ein vorhandenes Bild geht auch.
+- Die App verkleinert das Foto vor dem Hochladen (großes Bild max. 1200 px, Vorschau 240 px, meist zusammen unter 100 KB) – schnell auch im schwachen WLAN.
+- Angezeigt wird es als Vorschaubild in Bestand, Scanliste und Regal-Inhalt; auf der Stück-Seite groß, antippen zum Vergrößern.
+- Fotos aufnehmen dürfen **Mitarbeiter**, Leitung und Admin; **entfernen** dürfen Leitung und Admin. Beides steht im Protokoll.
+- Gespeichert wird in der Datenbank (D1, 5 GB im kostenlosen Tarif – reicht für weit über 50 000 Fotos). Die JSON-Datensicherung enthält die Fotos nicht.
+
+**Kategorie-Symbole**
+- Hat ein Stück kein Foto, zeigt die App das **Symbol seiner Kategorie** in deren Farbe – z. B. 🔧 Werkzeug blau, ⚡ Elektrik gelb, 🚚 Transport orange.
+- Passende Symbole werden **automatisch** aus dem Kategorienamen gewählt (Werkzeug, Messgerät, Elektrik, Kabel, IT, PSA, Erste Hilfe, Transport …).
+- Die **Leitung** kann unter *Bestand → Kategorien* (oder *Mehr → Kategorien*) für jede Kategorie eines von 43 Symbolen und eine von 9 Farben festlegen.
+- Beim Erfassen werden die vorhandenen Kategorien mit Symbol als Vorschläge angezeigt und beim Tippen gefiltert.
+
+---
+
 ## Passwort ändern oder vergessen
 
 | Situation | So geht’s |
@@ -129,8 +151,8 @@ Falls kein Admin mehr hineinkommt, kann man auf der Anmeldeseite über **„Admi
 | Rolle | Darf |
 |---|---|
 | **Leser** | scannen, nachsehen wo etwas ist, Verlauf ansehen |
-| **Mitarbeiter** | + einlagern, umbuchen, neue Stücke erfassen; eigenes Protokoll |
-| **Leitung** | + Abteilungen/Regale anlegen, Etiketten drucken, Stücke bearbeiten/ausmustern, komplettes Protokoll + Export |
+| **Mitarbeiter** | + einlagern, umbuchen, neue Stücke erfassen, Fotos aufnehmen; eigenes Protokoll |
+| **Leitung** | + Abteilungen/Regale anlegen, Etiketten drucken, Stücke bearbeiten/ausmustern, Fotos entfernen, Kategorie-Symbole festlegen, komplettes Protokoll + Export |
 | **Admin** | + Benutzer anlegen, Rollen vergeben, sperren, Passwort zurücksetzen, Datensicherung |
 
 Die Rechte werden bei **jeder Anfrage auf dem Server** geprüft – nicht nur in der Oberfläche.

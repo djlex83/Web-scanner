@@ -205,3 +205,61 @@ describe("Notfall-Code", () => {
     expect(letzter).toBe(429);
   });
 });
+
+describe("Kategorien und Fotos", () => {
+  // kleinstes gültiges PNG-Gerüst (der Server prüft nur die Dateisignatur)
+  const png = (n: number) => new File([new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, ...new Array(n).fill(1)])], "x.png", { type: "image/png" });
+
+  it("Kategorien bekommen automatisch einen Stil, Leitung kann ihn ändern", async () => {
+    const admin = await adminEinrichten();
+    await admin.post("/stuecke", { code: "K-1", name: "Akkuschrauber", kategorie: "Werkzeug" });
+    await admin.post("/stuecke", { code: "K-2", name: "Multimeter", kategorie: "Messgerät" });
+    const liste = (await admin.get("/kategorien")).daten;
+    expect(liste.find((k: any) => k.name === "Werkzeug")).toMatchObject({ symbol: "wrench", farbe: "blau", anzahl: 1, eigen: false });
+
+    const ma = await benutzerMit(admin, "ma3", "mitarbeiter");
+    expect((await ma.put("/kategorien/Werkzeug", { symbol: "hammer", farbe: "rot" })).status).toBe(403);
+    expect((await admin.put("/kategorien/Werkzeug", { symbol: "hammer", farbe: "rot" })).status).toBe(200);
+    expect((await admin.put("/kategorien/Werkzeug", { symbol: "gibtsnicht", farbe: "rot" })).status).toBe(400);
+    const neu = (await admin.get("/kategorien")).daten.find((k: any) => k.name === "Werkzeug");
+    expect(neu).toMatchObject({ symbol: "hammer", farbe: "rot", eigen: true });
+  });
+
+  it("Foto hochladen, abrufen, ersetzen und entfernen", async () => {
+    const admin = await adminEinrichten();
+    const s = (await admin.post("/stuecke", { code: "F-1", name: "Flex" })).daten;
+    expect(s.foto_version).toBeNull();
+
+    const form = new FormData();
+    form.set("bild", png(500));
+    form.set("vorschau", png(50));
+    const hoch = await admin.post(`/stuecke/${s.id}/foto`, form);
+    expect(hoch.daten).toEqual({ foto_version: 1 });
+
+    const klein = await admin.get(`/stuecke/${s.id}/foto?v=1`);
+    expect(klein.res.headers.get("content-type")).toBe("image/png");
+    expect(klein.res.headers.get("cache-control")).toContain("immutable");
+    const gross = await admin.anfrage("GET", `/stuecke/${s.id}/foto?groesse=gross`);
+    expect(gross.status).toBe(200);
+
+    const falsch = new FormData();
+    falsch.set("bild", new File([new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12])], "x.gif"));
+    falsch.set("vorschau", png(10));
+    expect((await admin.post(`/stuecke/${s.id}/foto`, falsch)).status).toBe(400);
+
+    const nochmal = new FormData();
+    nochmal.set("bild", png(600));
+    nochmal.set("vorschau", png(60));
+    expect((await admin.post(`/stuecke/${s.id}/foto`, nochmal)).daten).toEqual({ foto_version: 2 });
+    expect((await admin.get(`/stuecke/${s.id}`)).daten.stueck.foto_version).toBe(2);
+
+    const leser = await benutzerMit(admin, "les2", "leser");
+    expect((await leser.get(`/stuecke/${s.id}/foto`)).status).toBe(200);
+    expect((await leser.post(`/stuecke/${s.id}/foto`, nochmal)).status).toBe(403);
+    expect((await leser.loeschen(`/stuecke/${s.id}/foto`)).status).toBe(403);
+
+    expect((await admin.loeschen(`/stuecke/${s.id}/foto`)).status).toBe(200);
+    expect((await admin.get(`/stuecke/${s.id}/foto`)).status).toBe(404);
+    expect((await admin.get(`/stuecke/${s.id}`)).daten.stueck.foto_version).toBeNull();
+  });
+});

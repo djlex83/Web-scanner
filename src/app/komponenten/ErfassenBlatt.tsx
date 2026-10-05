@@ -2,13 +2,16 @@ import { MapPin, ScanBarcode } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { Platz, PlatzKurz, Stueck } from "../../gemeinsam/typen";
 import { fehlerText, senden } from "../lib/api";
-import { useLaden } from "../lib/hooks";
+import { fotoHochladen } from "../lib/bild";
 import { Blatt } from "../ui/blatt";
 import { Eingabe, Feld, Textfeld } from "../ui/formular";
 import { kl } from "../ui/kl";
 import { Knopf } from "../ui/knopf";
 import { FehlerHinweis } from "../ui/zustand";
+import { FotoFeld } from "./FotoBereich";
+import { KategorieSymbol, kategorienAktualisieren, useKategorien } from "./kategorie";
 import { PlatzWahl } from "./PlatzWahl";
+import { useMeldung } from "../ui/meldungen";
 
 /** Neues Stück zu einem gescannten Code anlegen – optional gleich auf einen Platz. */
 export function ErfassenBlatt({
@@ -29,12 +32,20 @@ export function ErfassenBlatt({
   const [wahlOffen, setWahlOffen] = useState(false);
   const [laedt, setLaedt] = useState(false);
   const [fehler, setFehler] = useState<string | null>(null);
-  const kategorien = useLaden<string[]>(code ? "/stuecke/kategorien" : null);
+  const kategorien = useKategorien();
+  // Vorschläge: beim Tippen passend gefiltert, sonst die häufigsten
+  const suche = kategorie.trim().toLowerCase();
+  const vorschlaege = (kategorien ?? [])
+    .filter((k) => !suche || k.name.toLowerCase().includes(suche))
+    .slice(0, 10);
+  const [foto, setFoto] = useState<File | null>(null);
+  const melden = useMeldung();
 
   useEffect(() => {
     if (code) {
       setName("");
       setBeschreibung("");
+      setFoto(null);
       setFehler(null);
       setPlatz(startPlatz ?? null);
     }
@@ -56,7 +67,16 @@ export function ErfassenBlatt({
         beschreibung: beschreibung || null,
         platz_id: platz?.id ?? null,
       });
-      fertig(s);
+      let ergebnis = s;
+      if (foto) {
+        try {
+          ergebnis = { ...s, foto_version: await fotoHochladen(s.id, foto) };
+        } catch (e) {
+          melden(`Stück erfasst, aber Foto nicht gespeichert: ${fehlerText(e)}`, "fehler");
+        }
+      }
+      void kategorienAktualisieren();
+      fertig(ergebnis);
     } catch (e) {
       setFehler(fehlerText(e));
     } finally {
@@ -97,19 +117,21 @@ export function ErfassenBlatt({
             {(p) => (
               <div className="space-y-2">
                 <Eingabe {...p} value={kategorie} onChange={(e) => setKategorie(e.target.value)} placeholder="z. B. Werkzeug" maxLength={80} />
-                {!!kategorien.daten?.length && (
+                {vorschlaege.length > 0 && (
                   <div className="flex flex-wrap gap-2">
-                    {kategorien.daten.slice(0, 8).map((k) => (
+                    {vorschlaege.map((k) => (
                       <button
-                        key={k}
+                        key={k.name}
                         type="button"
-                        onClick={() => setKategorie(k)}
+                        onClick={() => setKategorie(k.name)}
+                        aria-pressed={k.name === kategorie}
                         className={kl(
-                          "h-9 rounded-full border px-3.5 text-sm font-semibold transition",
-                          k === kategorie ? "border-transparent bg-primaer text-auf-primaer" : "border-rand text-gedaempft hover:text-text",
+                          "flex h-10 items-center gap-2 rounded-full border pl-1.5 pr-3.5 text-sm font-semibold transition",
+                          k.name === kategorie ? "border-primaer bg-primaer-weich text-primaer-text" : "border-rand text-gedaempft hover:text-text",
                         )}
                       >
-                        {k}
+                        <KategorieSymbol stil={k} className="size-7 rounded-full" />
+                        {k.name}
                       </button>
                     ))}
                   </div>
@@ -133,6 +155,10 @@ export function ErfassenBlatt({
               </button>
             )}
           </Feld>
+          <div className="space-y-1.5">
+            <div className="px-1 text-sm font-semibold">Foto <span className="font-normal text-gedaempft">(optional)</span></div>
+            <FotoFeld datei={foto} setDatei={setFoto} />
+          </div>
           <Feld beschriftung="Beschreibung" hinweis="Optional">
             {(p) => (
               <Textfeld {...p} value={beschreibung} onChange={(e) => setBeschreibung(e.target.value)} maxLength={1000} placeholder="Seriennummer, Zustand, Zubehör …" />

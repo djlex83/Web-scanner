@@ -46,15 +46,16 @@ uebersichtRouten.get("/", braucht("abfragen"), async (c) => {
   return c.json(antwort);
 });
 
-/** Datensicherung als JSON (ohne Passwort-Hashes und Sitzungen). */
+/** Datensicherung als JSON (ohne Passwort-Hashes, Sitzungen und Fotos). */
 uebersichtRouten.get("/sicherung", braucht("sicherung"), async (c) => {
   const db = c.env.DB;
-  const [benutzer, plaetze, stuecke, buchungen, protokoll] = await Promise.all([
+  const [benutzer, plaetze, stuecke, buchungen, protokoll, kategorien] = await Promise.all([
     db.prepare("SELECT id, benutzername, name, rolle, aktiv, erstellt_am, letzte_anmeldung FROM benutzer").all(),
     db.prepare("SELECT * FROM plaetze").all(),
     db.prepare("SELECT * FROM stuecke").all(),
     db.prepare("SELECT * FROM buchungen").all(),
     db.prepare("SELECT id, zeitpunkt, benutzer_id, aktion, objekt_typ, objekt_id, text, vorher_json, nachher_json FROM protokoll").all(),
+    db.prepare("SELECT * FROM kategorien").all(),
   ]);
   await protokollEintrag(c, {
     aktion: "sicherung",
@@ -70,6 +71,7 @@ uebersichtRouten.get("/sicherung", braucht("sicherung"), async (c) => {
       stuecke: stuecke.results,
       buchungen: buchungen.results,
       protokoll: protokoll.results,
+      kategorien: kategorien.results,
     },
     200,
     { "content-disposition": `attachment; filename="web-scanner-sicherung-${tag}.json"` },

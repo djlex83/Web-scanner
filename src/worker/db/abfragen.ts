@@ -71,10 +71,11 @@ export interface StueckZeile {
   bewegt_am: string | null;
   bewegt_von: string | null;
   erstellt_am: string;
+  foto_version: number | null;
 }
 
 export const STUECK_SELECT = `SELECT s.id, s.code, s.name, s.beschreibung, s.kategorie, s.status, s.platz_id,
-  s.bewegt_am, b.name AS bewegt_von, s.erstellt_am
+  s.bewegt_am, b.name AS bewegt_von, s.erstellt_am, s.foto_version
   FROM stuecke s LEFT JOIN benutzer b ON b.id = s.bewegt_von_id`;
 
 export function zuStueck(karte: PlatzKarte, z: StueckZeile): Stueck {
@@ -89,6 +90,7 @@ export function zuStueck(karte: PlatzKarte, z: StueckZeile): Stueck {
     bewegt_am: z.bewegt_am,
     bewegt_von: z.bewegt_von,
     erstellt_am: z.erstellt_am,
+    foto_version: z.foto_version,
   };
 }
 

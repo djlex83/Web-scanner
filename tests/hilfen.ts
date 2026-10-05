@@ -5,14 +5,15 @@ export class Client {
   cookie = "";
 
   async anfrage(methode: string, pfad: string, koerper?: unknown) {
-    const kopf: Record<string, string> = { "user-agent": "vitest" };
+    const kopf: Record<string, string> = { "user-agent": "vitest", origin: "https://scanner.test" };
     if (this.cookie) kopf.cookie = this.cookie;
-    if (koerper !== undefined) kopf["content-type"] = "application/json";
+    const formular = koerper instanceof FormData;
+    if (koerper !== undefined && !formular) kopf["content-type"] = "application/json";
     const res = await exports.default.fetch(
       new Request("https://scanner.test/api" + pfad, {
         method: methode,
         headers: kopf,
-        body: koerper === undefined ? undefined : JSON.stringify(koerper),
+        body: koerper === undefined ? undefined : formular ? koerper : JSON.stringify(koerper),
       }),
     );
     const gesetzt = res.headers.get("set-cookie");
@@ -28,6 +29,8 @@ export class Client {
   get = (pfad: string) => this.anfrage("GET", pfad);
   post = (pfad: string, k: unknown) => this.anfrage("POST", pfad, k);
   patch = (pfad: string, k: unknown) => this.anfrage("PATCH", pfad, k);
+  put = (pfad: string, k: unknown) => this.anfrage("PUT", pfad, k);
+  loeschen = (pfad: string) => this.anfrage("DELETE", pfad);
 }
 
 export async function adminEinrichten(): Promise<Client> {

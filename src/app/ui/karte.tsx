@@ -42,6 +42,8 @@ export function Liste({ children, className }: { children: ReactNode; className?
 
 interface ZeileProps {
   symbol?: ReactNode;
+  /** fertiges Bild (z. B. Foto), wird ohne Rahmen angezeigt */
+  bild?: ReactNode;
   titel: ReactNode;
   unter?: ReactNode;
   rechts?: ReactNode;
@@ -51,10 +53,11 @@ interface ZeileProps {
 }
 
 /** Listenzeile, mindestens 64 px hoch; mit `zu` oder `onClick` antippbar. */
-export function Zeile({ symbol, titel, unter, rechts, zu, onClick, className }: ZeileProps) {
+export function Zeile({ symbol, bild, titel, unter, rechts, zu, onClick, className }: ZeileProps) {
   const inhalt = (
     <>
-      {symbol && (
+      {bild}
+      {symbol && !bild && (
         <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-flaeche-2 text-gedaempft [&_svg]:size-5">
           {symbol}
         </div>

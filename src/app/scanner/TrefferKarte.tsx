@@ -1,5 +1,6 @@
-import { ArrowRight, Box, CircleHelp, MapPin, Plus, Warehouse, X } from "lucide-react";
+import { ArrowRight, CircleHelp, MapPin, Plus, Warehouse, X } from "lucide-react";
 import { Link } from "react-router";
+import { StueckBild } from "../komponenten/kategorie";
 import { vorWann } from "../lib/format";
 import { Abzeichen, StatusAbzeichen } from "../ui/abzeichen";
 import { kl } from "../ui/kl";
@@ -97,9 +98,7 @@ export function TrefferKarte({ eintrag, zielId, zielName, erfassen, entfernen, n
   return (
     <div className={kl(rahmen, neuErfasst ? "border-erfolg/50" : "border-rand")}>
       <Link to={`/stuecke/${s.id}`} className="flex min-w-0 flex-1 items-start gap-3">
-        <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-flaeche-2 text-gedaempft">
-          <Box className="size-5" />
-        </div>
+        <StueckBild stueck={s} className="size-14 rounded-xl" />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <span className="truncate text-[15px] font-semibold">{s.name}</span>

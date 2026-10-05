@@ -99,6 +99,30 @@ export const MIGRATIONEN: { version: number; sql: string[] }[] = [
         BEGIN SELECT RAISE(ABORT, 'Buchungen sind unveraenderbar'); END`,
     ],
   },
+  {
+    version: 2,
+    sql: [
+      // Fotos: ein Foto je Stück, groß (Detail) und klein (Listen); foto_version für Cache-URLs
+      `ALTER TABLE stuecke ADD COLUMN foto_version INTEGER`,
+      `CREATE TABLE fotos (
+        stueck_id INTEGER PRIMARY KEY REFERENCES stuecke(id),
+        bild BLOB NOT NULL,
+        bild_typ TEXT NOT NULL,
+        vorschau BLOB NOT NULL,
+        vorschau_typ TEXT NOT NULL,
+        groesse INTEGER NOT NULL,
+        benutzer_id INTEGER REFERENCES benutzer(id),
+        erstellt_am TEXT NOT NULL
+      )`,
+      // Eigene Symbole/Farben je Kategorie (sonst automatisch aus dem Namen)
+      `CREATE TABLE kategorien (
+        name TEXT PRIMARY KEY COLLATE NOCASE,
+        symbol TEXT NOT NULL,
+        farbe TEXT NOT NULL,
+        geaendert_am TEXT NOT NULL
+      )`,
+    ],
+  },
 ];
 
 let bereit: Promise<void> | null = null;

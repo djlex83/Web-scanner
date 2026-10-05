@@ -1,7 +1,8 @@
-import { ArrowRightLeft, Box, ChevronRight, PackageOpen, Pencil, Plus, Printer, Warehouse } from "lucide-react";
+import { ArrowRightLeft, ChevronRight, PackageOpen, Pencil, Plus, Printer, Warehouse } from "lucide-react";
 import { useState } from "react";
 import { Link, useParams } from "react-router";
 import { PLATZ_TYP_NAME, type Platz, type PlatzTyp, type Stueck } from "../../gemeinsam/typen";
+import { StueckBild } from "../komponenten/kategorie";
 import { PlatzAnlegen, PlatzBearbeiten } from "../komponenten/PlatzAnlegen";
 import { natuerlich } from "../komponenten/PlatzWahl";
 import { QrCode } from "../komponenten/QrCode";
@@ -133,7 +134,7 @@ export default function PlatzDetail() {
               <Zeile
                 key={s.id}
                 zu={`/stuecke/${s.id}`}
-                symbol={<Box />}
+                bild={<StueckBild stueck={s} className="size-12 rounded-xl" />}
                 titel={s.name}
                 unter={
                   <>

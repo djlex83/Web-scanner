@@ -1,9 +1,11 @@
-import { Box, PackageSearch, Search, X } from "lucide-react";
+import { PackageSearch, Search, Shapes, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router";
 import type { Seite, Stueck } from "../../gemeinsam/typen";
+import { StueckBild } from "../komponenten/kategorie";
 import { abfrage, fehlerText, holen } from "../lib/api";
 import { useVerzoegert } from "../lib/hooks";
+import { useSitzung } from "../lib/sitzung";
 import { StatusAbzeichen } from "../ui/abzeichen";
 import { Chips, Eingabe } from "../ui/formular";
 import { Liste, Zeile } from "../ui/karte";
@@ -19,6 +21,7 @@ const FILTER = [
 ];
 
 export default function Bestand() {
+  const { darf } = useSitzung();
   const [param, setParam] = useSearchParams();
   const [suche, setSuche] = useState(param.get("q") ?? "");
   const q = useVerzoegert(suche.trim(), 250);
@@ -81,7 +84,17 @@ export default function Bestand() {
 
   return (
     <div className="space-y-4">
-      <SeitenKopf titel="Bestand" unter="Alle Stücke – suchen, filtern, Details ansehen" />
+      <SeitenKopf
+        titel="Bestand"
+        unter="Alle Stücke – suchen, filtern, Details ansehen"
+        aktionen={
+          darf("stuecke_verwalten") && (
+            <KnopfLink to="/kategorien" symbol={<Shapes className="size-5" />}>
+              <span className="sr-only sm:not-sr-only">Kategorien</span>
+            </KnopfLink>
+          )
+        }
+      />
       <div className="relative">
         <Search className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-gedaempft" />
         <Eingabe
@@ -121,7 +134,7 @@ export default function Bestand() {
               <Zeile
                 key={s.id}
                 zu={`/stuecke/${s.id}`}
-                symbol={<Box />}
+                bild={<StueckBild stueck={s} className="size-12 rounded-xl" />}
                 titel={s.name}
                 unter={
                   <>

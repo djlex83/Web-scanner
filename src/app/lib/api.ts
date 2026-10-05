@@ -17,11 +17,12 @@ export function beiSitzungsende(fn: Abmelden) {
 
 export async function api<T>(pfad: string, optionen: { methode?: string; daten?: unknown } = {}): Promise<T> {
   let res: Response;
+  const formular = optionen.daten instanceof FormData;
   try {
     res = await fetch("/api" + pfad, {
       method: optionen.methode ?? (optionen.daten === undefined ? "GET" : "POST"),
-      headers: optionen.daten === undefined ? undefined : { "content-type": "application/json" },
-      body: optionen.daten === undefined ? undefined : JSON.stringify(optionen.daten),
+      headers: optionen.daten === undefined || formular ? undefined : { "content-type": "application/json" },
+      body: optionen.daten === undefined ? undefined : formular ? (optionen.daten as FormData) : JSON.stringify(optionen.daten),
       credentials: "same-origin",
     });
   } catch {
@@ -38,6 +39,8 @@ export async function api<T>(pfad: string, optionen: { methode?: string; daten?:
 export const holen = <T>(pfad: string) => api<T>(pfad);
 export const senden = <T>(pfad: string, daten: unknown) => api<T>(pfad, { daten });
 export const aendern = <T>(pfad: string, daten: unknown) => api<T>(pfad, { methode: "PATCH", daten });
+export const ersetzen = <T>(pfad: string, daten: unknown) => api<T>(pfad, { methode: "PUT", daten });
+export const loeschen = <T>(pfad: string) => api<T>(pfad, { methode: "DELETE" });
 
 export function fehlerText(e: unknown): string {
   return e instanceof Error ? e.message : "Unbekannter Fehler";

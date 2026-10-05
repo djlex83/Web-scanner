@@ -59,14 +59,6 @@ stueckeRouten.get("/", braucht("abfragen"), async (c) => {
   return c.json(antwort);
 });
 
-stueckeRouten.get("/kategorien", braucht("abfragen"), async (c) => {
-  const { results } = await c.env.DB.prepare(
-    `SELECT kategorie, COUNT(*) AS n FROM stuecke WHERE kategorie IS NOT NULL
-     GROUP BY kategorie ORDER BY n DESC LIMIT 30`,
-  ).all<{ kategorie: string }>();
-  return c.json(results.map((r) => r.kategorie));
-});
-
 stueckeRouten.get("/:id{[0-9]+}", braucht("abfragen"), async (c) => {
   const id = Number(c.req.param("id"));
   const karte = await plaetzeLaden(c.env.DB);

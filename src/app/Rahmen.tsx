@@ -116,7 +116,7 @@ function UnterNavigation() {
     { zu: "/mehr", text: "Mehr", symbol: <Menu /> },
   ];
   const ort = useLocation();
-  const mehrAktiv = ["/mehr", "/protokoll", "/benutzer", "/konto"].some((p) => ort.pathname.startsWith(p));
+  const mehrAktiv = ["/mehr", "/protokoll", "/benutzer", "/konto", "/kategorien"].some((p) => ort.pathname.startsWith(p));
 
   return (
     <nav

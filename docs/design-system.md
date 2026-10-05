@@ -23,6 +23,7 @@ Farben nur über Tokens verwenden (Tailwind-Klassen wie `bg-flaeche`, `text-geda
 | `text`, `gedaempft` | Haupttext / Nebentext |
 | `primaer`, `primaer-weich`, `primaer-text`, `auf-primaer` | Akzent (Indigo): Hauptaktionen, Auswahl, Links |
 | `erfolg*`, `warnung*`, `gefahr*` | Status: vorhanden / unbekannt, defekt / Fehler, Sperren |
+| `--kat-<farbe>-bg/-fg` | Kategorie-Farben (grau, blau, gruen, gelb, orange, rot, lila, pink, tuerkis) für Symbol-Kacheln, je hell/dunkel |
 
 Gemessene Kontraste (hell / dunkel): Text auf Fläche 18,1 / 16,0 · Nebentext 6,0 / 6,7 · Weiß auf Primär 5,5 / 5,8 · Status-Texte auf Status-Flächen ≥ 5,9 · Eingabe-Rahmen ≥ 3,7. Alle Werte erfüllen WCAG 2.1 AA.
 
@@ -44,6 +45,8 @@ Gemessene Kontraste (hell / dunkel): Text auf Fläche 18,1 / 16,0 · Nebentext 6
 | `useMeldung` | Kurze Rückmeldungen – am Handy oben, am Desktop unten |
 | `Abzeichen`, `StatusAbzeichen`, `RollenAbzeichen` | Status und Rollen |
 | `Laden`, `Skelett`, `Leer`, `FehlerHinweis` | Lade-, Leer- und Fehlerzustände (mit „Erneut“) |
+
+Bilder (`src/app/komponenten/`): `StueckBild` (Foto oder Kategorie-Symbol, Größe/Rundung per Klasse), `KategorieSymbol`, `FotoBereich` (Foto anzeigen, vergrößern, ersetzen, entfernen), `FotoFeld` (Auswahl mit Vorschau im Formular). Fotos werden vor dem Hochladen verkleinert (`lib/bild.ts`).
 
 Scanner-Bausteine (`src/app/scanner/`): `Kamera` (Sucher, Treffer-Umrandung, Licht, Foto, Pause), `ManuelleEingabe`, `useHandscanner`, `TrefferKarte`, `useScanListe`.
 

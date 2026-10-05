@@ -3,6 +3,8 @@ import { useState } from "react";
 import { Link, useParams } from "react-router";
 import { STATUS_NAME, type Buchung, type Platz, type Stueck, type StueckStatus } from "../../gemeinsam/typen";
 import { BewegungsZeile } from "../komponenten/BewegungsZeile";
+import { FotoBereich } from "../komponenten/FotoBereich";
+import { KategorieSymbol, kategorienAktualisieren, stilFuer, useKategorien } from "../komponenten/kategorie";
 import { PlatzWahl } from "../komponenten/PlatzWahl";
 import { aendern, fehlerText, senden } from "../lib/api";
 import { tagesUeberschrift, vorWann, zeitpunkt } from "../lib/format";
@@ -21,7 +23,8 @@ export default function StueckDetail() {
   const { id } = useParams();
   const { darf } = useSitzung();
   const melden = useMeldung();
-  const { daten, fehler, neuLaden } = useLaden<{ stueck: Stueck; verlauf: Buchung[] }>(`/stuecke/${id}`);
+  const { daten, setDaten, fehler, neuLaden } = useLaden<{ stueck: Stueck; verlauf: Buchung[] }>(`/stuecke/${id}`);
+  const kategorien = useKategorien();
   const [wahl, setWahl] = useState(false);
   const [bearbeiten, setBearbeiten] = useState(false);
 
@@ -56,10 +59,17 @@ export default function StueckDetail() {
         unter={
           <span className="flex flex-wrap items-center gap-2">
             <StatusAbzeichen status={s.status} />
-            {s.kategorie && <Abzeichen>{s.kategorie}</Abzeichen>}
+            {s.kategorie && (
+              <Abzeichen className="pl-1">
+                <KategorieSymbol stil={stilFuer(s.kategorie, kategorien)} className="size-5 rounded-full" />
+                {s.kategorie}
+              </Abzeichen>
+            )}
           </span>
         }
       />
+
+      <FotoBereich stueck={s} geaendert={(v) => setDaten({ stueck: { ...s, foto_version: v }, verlauf })} />
 
       <Karte className="overflow-hidden">
         <div className="flex items-start gap-4 bg-gradient-to-br from-primaer-weich to-transparent p-5">
@@ -151,6 +161,7 @@ export default function StueckDetail() {
             setBearbeiten(false);
             melden("Gespeichert");
             void neuLaden();
+            void kategorienAktualisieren();
           }}
         />
       )}

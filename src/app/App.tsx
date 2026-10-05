@@ -18,6 +18,7 @@ const Etiketten = lazy(() => import("./seiten/Etiketten"));
 const Protokoll = lazy(() => import("./seiten/Protokoll"));
 const Benutzer = lazy(() => import("./seiten/Benutzer"));
 const Konto = lazy(() => import("./seiten/Konto"));
+const Kategorien = lazy(() => import("./seiten/Kategorien"));
 const Mehr = lazy(() => import("./seiten/Konto").then((m) => ({ default: m.Mehr })));
 
 function Nur({ recht, children }: { recht: Recht; children: ReactNode }) {
@@ -40,6 +41,7 @@ function Inhalt() {
           <Route path="scannen" element={<Scannen />} />
           <Route path="stuecke" element={<Bestand />} />
           <Route path="stuecke/:id" element={<StueckDetail />} />
+          <Route path="kategorien" element={<Nur recht="stuecke_verwalten"><Kategorien /></Nur>} />
           <Route path="plaetze" element={<Plaetze />} />
           <Route path="plaetze/:id" element={<PlatzDetail />} />
           <Route path="protokoll" element={<Protokoll />} />

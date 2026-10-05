@@ -1,5 +1,6 @@
 // Prüfregeln für Eingaben – der Server prüft jede Anfrage damit.
 import { z } from "zod";
+import { FARBEN, SYMBOLE } from "./kategorien";
 import { ROLLEN } from "./rechte";
 
 const text = (max: number) => z.string().trim().min(1, "Pflichtfeld").max(max);
@@ -86,6 +87,11 @@ export const stueckAendernSchema = z.object({
   kategorie: optText(80),
   beschreibung: optText(1000),
   status: z.enum(["vorhanden", "defekt", "ausgemustert"]).optional(),
+});
+
+export const kategorieStilSchema = z.object({
+  symbol: z.enum(SYMBOLE),
+  farbe: z.enum(FARBEN),
 });
 
 export const scanSchema = z.object({
