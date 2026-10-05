@@ -12,6 +12,7 @@ import {
   Printer,
   SearchCheck,
   SearchX,
+  Trash2,
   Undo2,
   Wrench,
 } from "lucide-react";
@@ -23,7 +24,7 @@ import { BewegungsZeile } from "../komponenten/BewegungsZeile";
 import { FotoBereich } from "../komponenten/FotoBereich";
 import { KategorieSymbol, kategorienAktualisieren, StueckBild, stilFuer, useKategorien } from "../komponenten/kategorie";
 import { PlatzWahl } from "../komponenten/PlatzWahl";
-import { PruefungBlatt } from "../komponenten/PruefungBlatt";
+import { PruefungBlatt, PruefungLoeschenBlatt } from "../komponenten/PruefungBlatt";
 import { StammplatzBlatt } from "../komponenten/StammplatzBlatt";
 import { StueckBearbeiten } from "../komponenten/StueckBearbeiten";
 import { datumText, istUeberfaellig, pruefStand, StueckMerkmale } from "../komponenten/StueckMerkmale";
@@ -36,7 +37,7 @@ import { useIch, useSitzung } from "../lib/sitzung";
 import { Abzeichen, type Ton } from "../ui/abzeichen";
 import { Abschnitt, Karte, Liste, Zeile } from "../ui/karte";
 import { kl } from "../ui/kl";
-import { Knopf, KnopfLink } from "../ui/knopf";
+import { Knopf, KnopfLink, SymbolKnopf } from "../ui/knopf";
 import { useMeldung } from "../ui/meldungen";
 import { SeitenKopf } from "../ui/seitenkopf";
 import { FehlerHinweis, Laden, Leer } from "../ui/zustand";
@@ -64,6 +65,7 @@ export default function StueckDetail() {
   const [ausgeben, setAusgeben] = useState(false);
   const [pruefen, setPruefen] = useState(false);
   const [stammWahl, setStammWahl] = useState(false);
+  const [pruefungWeg, setPruefungWeg] = useState<Pruefung | null>(null);
   const [laedt, setLaedt] = useState<string | null>(null);
 
   if (fehler) return <FehlerHinweis text={fehler} nochmal={neuLaden} />;
@@ -311,7 +313,7 @@ export default function StueckDetail() {
             Ausleihen
           </Knopf>
         )}
-        {kannBuchen && hatPruefung && (
+        {kannBuchen && (
           <Knopf groesse="l" symbol={<ClipboardCheck className="size-5" />} onClick={() => setPruefen(true)}>
             Prüfung
           </Knopf>
@@ -382,6 +384,11 @@ export default function StueckDetail() {
                   </div>
                   {p.notiz && <div className="mt-0.5 whitespace-pre-wrap text-[13px]">{p.notiz}</div>}
                 </div>
+                {darf("pruefungen_loeschen") && (
+                  <SymbolKnopf beschriftung={`Prüfung vom ${datumText(p.datum)} löschen`} className="-my-1 -mr-2 size-11" onClick={() => setPruefungWeg(p)}>
+                    <Trash2 className="size-5 text-gedaempft" />
+                  </SymbolKnopf>
+                )}
               </div>
             ))}
           </Liste>
@@ -473,6 +480,17 @@ export default function StueckDetail() {
           void neuLaden();
         }}
       />
+      {pruefungWeg && (
+        <PruefungLoeschenBlatt
+          pruefung={pruefungWeg}
+          schliessen={() => setPruefungWeg(null)}
+          fertig={() => {
+            setPruefungWeg(null);
+            melden("Prüfung gelöscht");
+            void neuLaden();
+          }}
+        />
+      )}
       {stammWahl && (
         <StammplatzBlatt
           stueck={s}

@@ -217,6 +217,27 @@ export const MIGRATIONEN: { version: number; sql: string[] }[] = [
        WHERE behaelter = 1 AND stamm_behaelter_id IS NOT NULL`,
     ],
   },
+  {
+    version: 5,
+    sql: [
+      // Prüfungen löschen (ab Leitung): als gelöscht markieren statt entfernen – der Nachweis bleibt erhalten
+      `ALTER TABLE pruefungen ADD COLUMN geloescht_am TEXT`,
+      `ALTER TABLE pruefungen ADD COLUMN geloescht_von_id INTEGER REFERENCES benutzer(id)`,
+      `ALTER TABLE pruefungen ADD COLUMN loeschgrund TEXT`,
+      // nächster Termin vor dieser Prüfung – damit Löschen ihn wiederherstellen kann
+      `ALTER TABLE pruefungen ADD COLUMN vorher_naechste TEXT`,
+      `ALTER TABLE pruefungen ADD COLUMN vorher_gespeichert INTEGER NOT NULL DEFAULT 0`,
+      `DROP TRIGGER pruefungen_kein_aendern`,
+      // Erlaubt ist nur noch das einmalige Markieren als gelöscht; alles andere bleibt unveränderbar
+      `CREATE TRIGGER pruefungen_kein_aendern BEFORE UPDATE ON pruefungen
+        WHEN OLD.geloescht_am IS NOT NULL OR NEW.geloescht_am IS NULL
+          OR NEW.id IS NOT OLD.id OR NEW.stueck_id IS NOT OLD.stueck_id OR NEW.datum IS NOT OLD.datum
+          OR NEW.ergebnis IS NOT OLD.ergebnis OR NEW.notiz IS NOT OLD.notiz OR NEW.naechste IS NOT OLD.naechste
+          OR NEW.benutzer_id IS NOT OLD.benutzer_id OR NEW.erfasst_am IS NOT OLD.erfasst_am
+          OR NEW.vorher_naechste IS NOT OLD.vorher_naechste OR NEW.vorher_gespeichert IS NOT OLD.vorher_gespeichert
+        BEGIN SELECT RAISE(ABORT, 'Pruefungen sind unveraenderbar'); END`,
+    ],
+  },
 ];
 
 let bereit: Promise<void> | null = null;

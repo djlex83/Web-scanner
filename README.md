@@ -143,9 +143,10 @@ Jedes Stück hat einen **Stammplatz** – den Platz (oder Behälter), wo es hing
 
 Unter *Stück → Bearbeiten → Prüfung und Wartung* die Art (z. B. Elektroprüfung DGUV V3, Kalibrierung), das **Intervall** und den **nächsten Termin** eintragen. Danach:
 
-- **Prüfung eintragen** mit Datum, Ergebnis (bestanden / mit Mängeln / nicht bestanden) und Notiz – der nächste Termin wird aus dem Intervall berechnet. „Nicht bestanden“ markiert das Stück als defekt.
+- **Prüfung eintragen** mit Datum, Ergebnis (bestanden / mit Mängeln / nicht bestanden) und Notiz. Der nächste Termin steht automatisch auf **Prüfdatum + 1 Jahr** (oder + eigenes Intervall) und lässt sich ändern. „Nicht bestanden“ markiert das Stück als defekt.
+- **Prüfung löschen** (ab Rolle Leitung): Mülleimer neben der Prüfung, optional mit Grund. Sie verschwindet aus der Liste, der Termin von davor gilt wieder; im Protokoll bleibt festgehalten, wer sie wann gelöscht hat.
 - **Prüfungen** listet alle Termine: überfällig, in den nächsten 30 Tagen, später. Die Startseite und jeder Scan zeigen „Prüfung überfällig“ bzw. „Prüfung bald“.
-- Alle Prüfnachweise bleiben unveränderbar am Stück gespeichert.
+- Prüfnachweise selbst sind unveränderbar – gelöschte werden nur ausgeblendet, nie entfernt.
 
 ![Prüfung überfällig, eintragen, Übersicht](docs/bilder/pruefung.png)
 
@@ -218,7 +219,7 @@ Falls kein Admin mehr hineinkommt, kann man auf der Anmeldeseite über **„Admi
 |---|---|
 | **Leser** | scannen, nachsehen wo etwas ist, Verlauf ansehen |
 | **Mitarbeiter** | + einlagern, umbuchen, neue Stücke und Behälter erfassen, Fotos aufnehmen, ausleihen/zurücknehmen, Inventur, Prüfungen eintragen, vermisst melden, eigene Buchungen rückgängig machen; eigenes Protokoll |
-| **Leitung** | + Abteilungen/Regale anlegen, Etiketten drucken, Stücke bearbeiten/ausmustern, Prüfpläne und Inventurpflicht festlegen, Fotos entfernen, Kategorie-Symbole festlegen, alle Buchungen rückgängig machen, komplettes Protokoll + Export |
+| **Leitung** | + Abteilungen/Regale anlegen, Etiketten drucken, Stücke bearbeiten/ausmustern, Prüfpläne und Inventurpflicht festlegen, Prüfungen löschen, Fotos entfernen, Kategorie-Symbole festlegen, alle Buchungen rückgängig machen, komplettes Protokoll + Export |
 | **Admin** | + Benutzer anlegen, Rollen vergeben, sperren, Passwort zurücksetzen, Datensicherung |
 
 Die Rechte werden bei **jeder Anfrage auf dem Server** geprüft – nicht nur in der Oberfläche.

@@ -161,7 +161,7 @@ stueckeRouten.get("/:id{[0-9]+}", braucht("abfragen"), async (c) => {
     c.env.DB.prepare(
       `SELECT p.id, p.datum, p.ergebnis, p.notiz, p.naechste, u.name AS benutzer
        FROM pruefungen p JOIN benutzer u ON u.id = p.benutzer_id
-       WHERE p.stueck_id = ? ORDER BY p.datum DESC, p.id DESC LIMIT 50`,
+       WHERE p.stueck_id = ? AND p.geloescht_am IS NULL ORDER BY p.datum DESC, p.id DESC LIMIT 50`,
     )
       .bind(id)
       .all<Pruefung>(),

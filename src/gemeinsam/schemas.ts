@@ -159,8 +159,12 @@ export const pruefungSchema = z.object({
   datum,
   ergebnis: z.enum(["bestanden", "mangel", "nicht_bestanden"]),
   notiz: optText(1000),
-  /** leer = aus dem Intervall berechnen */
+  /** weglassen = Prüfdatum + Intervall (Standard 1 Jahr); null = keine weitere Prüfung */
   naechste: datum.nullish(),
+});
+
+export const pruefungLoeschenSchema = z.object({
+  grund: optText(300),
 });
 
 export const inventurSchema = z.object({

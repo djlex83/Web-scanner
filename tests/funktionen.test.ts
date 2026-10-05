@@ -256,7 +256,12 @@ describe("Einrichtung einer neuen Datenbank", () => {
     const erster = await gast.get("/auth/einrichten");
     expect(erster.status).toBe(503);
     expect(erster.daten.fehler).toContain("neu laden");
-    expect((await gast.get("/auth/einrichten")).daten).toEqual({ noetig: true });
+    // jeder Aufruf spielt einen Teil ein; die App wiederholt bis zu 4-mal
+    let versuche = 1;
+    let r = erster;
+    while (r.status === 503 && versuche < 5) (r = await gast.get("/auth/einrichten")), versuche++;
+    expect(r.daten).toEqual({ noetig: true });
+    expect(versuche).toBeLessThanOrEqual(4);
   });
 });
 
@@ -330,5 +335,52 @@ describe("Stammplatz und Zurückräumen", () => {
       await env.DB.prepare(sql).run();
     }
     expect((await admin.get(`/stuecke/${ids["A-1"]}`)).daten.stueck).toMatchObject({ stammplatz: { id: r1.id }, am_stammplatz: false });
+  });
+});
+
+describe("Prüfung: 1 Jahr Standard und Löschen", () => {
+  it("nächster Termin: ohne Intervall 1 Jahr, mit Intervall dieses, null = keiner", async () => {
+    const { admin, ids } = await aufbau();
+    const a = await admin.post("/pruefungen", { stueck_id: ids["A-1"], datum: "2026-03-15", ergebnis: "bestanden" });
+    expect(a.daten.pruefung.naechste).toBe("2027-03-15");
+    await admin.patch(`/stuecke/${ids["A-2"]}`, { pruef_intervall: 6 });
+    const b = await admin.post("/pruefungen", { stueck_id: ids["A-2"], datum: "2026-03-15", ergebnis: "bestanden" });
+    expect(b.daten.pruefung.naechste).toBe("2026-09-15");
+    const c = await admin.post("/pruefungen", { stueck_id: ids["A-3"], datum: "2026-03-15", ergebnis: "bestanden", naechste: null });
+    expect(c.daten.pruefung.naechste).toBeNull();
+  });
+
+  it("löschen nur ab Leitung, verschwindet aus der Liste, Termin springt zurück, Nachweis bleibt", async () => {
+    const { admin, ids } = await aufbau();
+    const ma = await benutzerMit(admin, "mia", "mitarbeiter");
+    const leitung = await benutzerMit(admin, "leo", "leitung");
+    await admin.patch(`/stuecke/${ids["A-1"]}`, { pruef_art: "Elektroprüfung", pruef_naechste: "2026-01-01" });
+    await ma.post("/pruefungen", { stueck_id: ids["A-1"], datum: "2025-12-20", ergebnis: "bestanden" });
+    await ma.post("/pruefungen", { stueck_id: ids["A-1"], datum: "2026-02-01", ergebnis: "mangel" });
+    let detail = (await admin.get(`/stuecke/${ids["A-1"]}`)).daten;
+    expect(detail.stueck.pruefung.naechste).toBe("2027-02-01");
+    const [neueste, aeltere] = detail.pruefungen;
+
+    expect((await ma.post(`/pruefungen/${neueste.id}/loeschen`, { grund: "versehentlich" })).status).toBe(403);
+    const r = await leitung.post(`/pruefungen/${neueste.id}/loeschen`, { grund: "versehentlich doppelt" });
+    expect(r.daten).toEqual({ geloescht: true, pruef_naechste: "2026-12-20" });
+    detail = (await admin.get(`/stuecke/${ids["A-1"]}`)).daten;
+    expect(detail.pruefungen.map((p: any) => p.id)).toEqual([aeltere.id]);
+    expect(detail.stueck.pruefung.naechste).toBe("2026-12-20");
+    expect((await leitung.post(`/pruefungen/${neueste.id}/loeschen`, {})).status).toBe(409);
+
+    // ältere löschen ändert den Termin nicht mehr, wenn sie nicht die neueste ist – hier ist sie es jetzt
+    const r2 = await admin.post(`/pruefungen/${aeltere.id}/loeschen`, {});
+    expect(r2.daten.pruef_naechste).toBe("2026-01-01");
+
+    const prot = (await admin.get("/protokoll")).daten.eintraege;
+    expect(prot[1]).toMatchObject({ aktion: "pruefung_geloescht" });
+    expect(prot[1].text).toContain("versehentlich doppelt");
+    // Nachweis bleibt, Inhalt bleibt unveränderbar
+    const roh = await env.DB.prepare("SELECT COUNT(*) AS n FROM pruefungen WHERE geloescht_am IS NOT NULL").first<{ n: number }>();
+    expect(roh?.n).toBe(2);
+    await expect(env.DB.prepare("UPDATE pruefungen SET ergebnis = 'bestanden'").run()).rejects.toThrow(/unveraenderbar/);
+    await expect(env.DB.prepare("UPDATE pruefungen SET geloescht_am = NULL").run()).rejects.toThrow(/unveraenderbar/);
+    await expect(env.DB.prepare("DELETE FROM pruefungen").run()).rejects.toThrow(/unveraenderbar/);
   });
 });
