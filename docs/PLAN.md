@@ -1,17 +1,27 @@
 # Web Scanner – Projektplan
 
-Stand: 05.10.2026 · Status: **Entwurf, offene Fragen am Ende**
+Stand: 05.10.2026 · Status: **Grundentscheidungen getroffen, Ideenliste zur Auswahl (Abschnitt 10)**
 
 ## 1. Ziel
 
 Eine Web-App, die auf **Cloudflare** läuft und im Browser (Handy, Tablet, PC) **Strichcodes und QR-Codes** liest.
 
-- **Mehrere Codes nacheinander oder gleichzeitig scannen** und sofort sehen, **wo sich jede Sache gerade befindet**.
-- **Sachen umbuchen**: Ziel-Lagerplatz scannen, dann beliebig viele Sachen scannen, mit einem Tipp bestätigen.
+- **Mehrere Codes nacheinander oder gleichzeitig scannen** und sofort sehen, **wo sich jedes Stück gerade befindet**.
+- **Stücke umbuchen**: Ziel-Platz scannen, dann beliebig viele Stücke scannen, mit einem Tipp bestätigen.
 - **Lückenloses Protokoll**: Jede Buchung und jede Änderung wird gespeichert (wer, was, wann, von wo nach wo). Einträge können nicht geändert oder gelöscht werden.
 - **Eigene Konten für alle Benutzer** mit unterschiedlichen **Benutzerebenen** (Rollen).
 
-## 2. Architektur
+## 2. Entscheidungen
+
+| Frage | Entscheidung |
+|---|---|
+| Was wird verwaltet? | **Einzelstücke** – jedes Stück hat einen eigenen Strichcode. Keine Mengenartikel. |
+| Codes | Stücke haben **bereits Strichcodes**; die App übernimmt jeden lesbaren Code als Kennung. Lagerplätze bekommen **eigene QR-Codes aus der App**. |
+| Plätze | Gibt es noch nicht im System, werden **nachträglich in der App angelegt**: **Abteilung → Regal** (optional Fach). |
+| Datenschutz | Keine besonderen Auflagen. |
+| Kosten | **Nur kostenloser Cloudflare-Tarif**, keine kostenpflichtigen Funktionen. |
+
+## 3. Architektur
 
 ```
 Handy / Tablet / PC (Browser, als App installierbar – PWA)
@@ -24,87 +34,84 @@ Handy / Tablet / PC (Browser, als App installierbar – PWA)
 Cloudflare Worker (eine Anwendung: liefert Frontend + API)
   ├─ API mit Hono (TypeScript)
   ├─ Anmeldung, Rollenprüfung bei JEDER Anfrage auf dem Server
-  ├─ Cloudflare D1 (SQLite-Datenbank): Benutzer, Sachen, Lagerorte, Buchungen, Protokoll
-  ├─ Cloudflare R2: nächtliche Sicherung der Datenbank (Cron-Trigger)
-  └─ Rate Limiting gegen Passwort-Raten
+  ├─ Cloudflare D1 (SQLite-Datenbank): Benutzer, Stücke, Plätze, Buchungen, Protokoll
+  └─ Cloudflare R2: tägliche Sicherung der Datenbank (Cron-Trigger), später Fotos
 ```
 
 | Baustein | Wahl | Begründung |
 |---|---|---|
-| Hosting | **Cloudflare Workers mit statischen Assets** | Frontend und API in einem Projekt, HTTPS automatisch (nötig für die Kamera), weltweit schnell |
+| Hosting | **Cloudflare Workers mit statischen Assets** | Frontend und API in einem Projekt, HTTPS automatisch (nötig für die Kamera) |
 | API | **Hono** | klein, für Workers gebaut, TypeScript |
-| Datenbank | **Cloudflare D1** (SQLite) | relationale Daten (Sachen ↔ Orte ↔ Buchungen) passen gut; Transaktionen per `batch`; Wiederherstellung per Time Travel (7 Tage kostenlos, 30 Tage im bezahlten Tarif) |
-| Sicherung | **R2** + Cron-Trigger | tägliche Kopie zusätzlich zu Time Travel |
-| Scannen | **BarcodeDetector-API** mit Paket `barcode-detector` als Ersatz (zxing-cpp als WebAssembly) | auf Android-Chrome eingebaut und schnell; auf iPhone/Safari und Windows-Chrome übernimmt der Ersatz; erkennt mehrere Codes in einem Bild |
-| Frontend | **React + Vite + TypeScript**, PWA | auf dem Handy als App installierbar, später offline-fähig |
-| Tests | **Vitest** mit `@cloudflare/vitest-pool-workers`, **Playwright** für Ende-zu-Ende | testet API gegen echtes D1 lokal |
-| Auslieferung | GitHub Actions → `wrangler deploy` | Push auf `main` = neue Version; Vorschau-Umgebung für Tests |
+| Datenbank | **Cloudflare D1** (SQLite) | Stücke ↔ Plätze ↔ Buchungen sind relationale Daten; Transaktionen per `batch`; Time Travel 7 Tage im kostenlosen Tarif |
+| Sicherung | **R2** + Cron-Trigger | tägliche Kopie zusätzlich zu Time Travel, bleibt im kostenlosen R2-Kontingent |
+| Scannen | **BarcodeDetector-API** mit Paket `barcode-detector` als Ersatz (zxing-cpp als WebAssembly) | auf Android-Chrome eingebaut; auf iPhone/Safari und Windows-Chrome übernimmt der Ersatz; erkennt mehrere Codes in einem Bild |
+| Frontend | **React + Vite + TypeScript**, PWA | auf dem Handy als App installierbar |
+| Tests | **Vitest** mit `@cloudflare/vitest-pool-workers`, **Playwright** | testet API gegen echtes D1 lokal |
+| Auslieferung | GitHub Actions → `wrangler deploy` | Push auf `main` = neue Version unter `*.workers.dev` |
 
-**Kosten:** Für einen kleinen Betrieb reicht voraussichtlich der kostenlose Tarif (Workers 100 000 Anfragen/Tag, D1 5 GB, 5 Mio. gelesene und 100 000 geschriebene Zeilen pro Tag). Workers Paid (5 $/Monat) erst bei Bedarf, z. B. für 30 Tage Time Travel.
+**Grenzen des kostenlosen Tarifs** (reichen für einen Betrieb mit einigen Tausend Stücken und Dutzenden Benutzern deutlich): Workers 100 000 Anfragen/Tag · D1 5 GB, 5 Mio. gelesene und 100 000 geschriebene Zeilen pro Tag · R2 10 GB. Die App wird sparsam gebaut (Mehrfach-Abfrage in einer Anfrage, Indizes), damit die Grenzen nicht erreicht werden.
 
-## 3. Scannen
+## 4. Scannen
 
 - **Kamera** (Rückkamera, Taschenlampe ein/aus, Zoom wo verfügbar).
-- **Formate:** QR, DataMatrix, EAN-13/EAN-8, UPC, Code 128, Code 39, ITF – konfigurierbar, damit nur benötigte Formate gesucht werden (schneller, weniger Fehlerkennungen).
+- **Formate:** Code 128, Code 39, EAN-13/EAN-8, UPC, ITF, QR, DataMatrix. Sobald feststeht, welche Formate auf den Stücken kleben, werden nur diese gesucht (schneller, weniger Fehlerkennungen).
 - **Mehrfach-Scan:** Die Kamera bleibt offen; jeder erkannte Code landet in einer Liste. Doppelte Codes werden ignoriert. Rückmeldung per Ton, Vibration und grünem Rahmen. Mehrere Codes im selben Bild werden alle übernommen.
 - **Handscanner** (USB/Bluetooth im Tastaturmodus) und **manuelle Eingabe** als gleichwertige Wege.
-- **Code-Typ erkennen:** Lagerorte bekommen ein Präfix (z. B. `L-0042`), Sachen ein anderes (z. B. `S-001337`) oder einen vorhandenen Hersteller-Code. So weiß die App automatisch, ob ein Ort oder eine Sache gescannt wurde.
-- **Etiketten drucken:** QR-/Strichcode-Etiketten für Sachen und Lagerorte als druckfertige PDF-Seite (Vorlage für gängige Etikettenbögen).
+- **Platz oder Stück?** Platz-Etiketten aus der App tragen ein Präfix (`PLATZ:A03-R12`). Alles andere ist ein Stück. So weiß die App automatisch, was gescannt wurde.
+- **Etiketten drucken:** QR-Etiketten für Regale (und Abteilungen) als druckfertige Seite, einzeln oder als Sammeldruck aller Regale einer Abteilung.
 
-## 4. Abläufe
+## 5. Abläufe
 
-1. **„Wo ist?“ – Abfrage:** Codes scannen → Liste mit aktuellem Ort, zuletzt bewegt von wem und wann. Unbekannte Codes sind rot markiert; mit Berechtigung direkt „Neu anlegen“.
-2. **Umbuchen:** Ziel-Ort scannen → Sachen scannen → Übersicht „12 Sachen nach Regal B3“ → Bestätigen. Alle Buchungen werden in **einer Transaktion** gespeichert (alles oder nichts).
-3. **Einlagern / Entnehmen / Ausleihen:** wie Umbuchen, mit Buchungsart; „Ausleihen“ bucht auf eine Person oder ein Fahrzeug als besonderen Ort.
-4. **Verlauf einer Sache:** alle Bewegungen mit Zeit, Benutzer, von → nach.
-5. **Inventur** (spätere Phase): Ort scannen, alles scannen, was dort liegt → Abgleich „fehlt / zusätzlich gefunden / an falschem Ort“.
+1. **„Wo ist?“ – Abfrage:** Codes scannen → Liste mit Abteilung/Regal, zuletzt bewegt von wem und wann. Unbekannte Codes sind rot markiert; mit Berechtigung direkt „Neu anlegen“.
+2. **Erst-Erfassung:** Regal-Etikett scannen → alle Stücke im Regal nacheinander scannen → unbekannte Stücke werden mit Name/Kategorie angelegt und gleich diesem Regal zugeordnet. So wird der Bestand Regal für Regal ins System gebracht.
+3. **Umbuchen:** Ziel-Regal scannen → Stücke scannen → Übersicht „12 Stücke nach Montage / Regal 12“ → Bestätigen. Alle Buchungen in **einer Transaktion** (alles oder nichts).
+4. **Regal-Inhalt:** Regal scannen → alles, was laut System dort liegt.
+5. **Verlauf eines Stücks:** alle Bewegungen mit Zeit, Benutzer, von → nach.
 
-## 5. Benutzer und Rollen
+## 6. Benutzer und Rollen
 
-Jeder Benutzer hat ein **eigenes Konto**. Es gibt **keine Selbstregistrierung**: Admins legen Benutzer an oder verschicken einen Einladungslink.
+Jeder Benutzer hat ein **eigenes Konto**. Keine Selbstregistrierung: Admins legen Benutzer an.
 
 | Rolle | Darf |
 |---|---|
-| **Leser** | Codes scannen und abfragen („Wo ist?“), Verlauf ansehen |
-| **Mitarbeiter** | + Sachen einlagern, umbuchen, entnehmen; eigenes Protokoll ansehen |
-| **Leitung** | + Sachen und Lagerorte anlegen/ändern/deaktivieren, Etiketten drucken, komplettes Protokoll ansehen und exportieren (CSV) |
+| **Leser** | scannen und abfragen („Wo ist?“, Regal-Inhalt), Verlauf ansehen |
+| **Mitarbeiter** | + Stücke umbuchen, neue Stücke erfassen; eigenes Protokoll ansehen |
+| **Leitung** | + Abteilungen und Regale anlegen/ändern, Stücke bearbeiten/ausmustern, Etiketten drucken, komplettes Protokoll ansehen und exportieren (CSV) |
 | **Admin** | + Benutzer anlegen, sperren, Rollen vergeben, Passwörter zurücksetzen, Einstellungen |
 
 Die Rollen werden **auf dem Server** bei jeder Anfrage geprüft; die Oberfläche blendet nur zusätzlich aus, was jemand nicht darf.
 
-**Anmeldung (Empfehlung):** eigene Benutzerverwaltung im Worker.
-- Benutzername oder E-Mail + Passwort; Passwörter mit PBKDF2-SHA256 (WebCrypto, 100 000 Runden = Obergrenze in Workers) und eigenem Salt gehasht.
+**Anmeldung:** eigene Benutzerverwaltung im Worker (kostenlos, keine Fremddienste).
+- Benutzername + Passwort; Passwörter mit PBKDF2-SHA256 (WebCrypto, 100 000 Runden = Obergrenze in Workers) und eigenem Salt gehasht.
 - Sitzung als zufälliges Token; in der Datenbank nur der Hash. Cookie `HttpOnly`, `Secure`, `SameSite=Strict`, Ablauf nach Inaktivität.
-- Sperre nach mehreren Fehlversuchen + Cloudflare Rate Limiting.
-- Später optional: Zwei-Faktor (TOTP-App) für Leitung/Admin, oder Anmeldung mit Microsoft-/Google-Konto.
-- Alternative ohne eigenen Passwortcode: **Cloudflare Access** (Zero Trust, bis 50 Benutzer kostenlos) vor die App schalten; die Rollen blieben trotzdem in der App.
+- Konto-Sperre nach mehreren Fehlversuchen (in D1 gezählt).
+- Der **erste Admin** wird einmalig per Befehl (`npm run admin:anlegen`) erstellt – kein Standardpasswort im Code.
 
-Der **erste Admin** wird einmalig per Befehl (`npm run admin:anlegen`) erstellt – kein Standardpasswort im Code.
-
-## 6. Datenmodell (D1)
+## 7. Datenmodell (D1)
 
 ```
-benutzer      id, benutzername, email, name, rolle, passwort_hash, salt, aktiv,
+benutzer      id, benutzername, name, rolle, passwort_hash, salt, aktiv,
               fehlversuche, gesperrt_bis, erstellt_am, letzte_anmeldung
-sitzungen     id, benutzer_id, token_hash, erstellt_am, laeuft_ab, ip, geraet
-orte          id, code (eindeutig), name, typ (Standort/Lager/Regal/Fach/Person/Fahrzeug),
-              eltern_id (Hierarchie), aktiv
-sachen        id, code (eindeutig), name, beschreibung, kategorie,
-              ort_id (aktueller Ort), status (vorhanden/ausgeliehen/defekt/ausgemustert),
+sitzungen     id, benutzer_id, token_hash, erstellt_am, laeuft_ab, geraet
+plaetze       id, code (eindeutig), name, typ (Abteilung/Regal/Fach),
+              eltern_id (Regal → Abteilung), aktiv
+stuecke       id, code (eindeutig, vorhandener Strichcode), name, beschreibung, kategorie,
+              platz_id (aktueller Platz), status (vorhanden/defekt/ausgemustert),
               erstellt_am, geaendert_am
-buchungen     id, sache_id, von_ort_id, nach_ort_id, art (einlagern/umbuchen/entnehmen/
-              ausleihen/rueckgabe), benutzer_id, zeitpunkt, notiz, vorgang_id
+buchungen     id, stueck_id, von_platz_id, nach_platz_id, art (erfassen/umbuchen/
+              ausmustern), benutzer_id, zeitpunkt, notiz, vorgang_id
 protokoll     id, zeitpunkt, benutzer_id, aktion, objekt_typ, objekt_id,
-              vorher_json, nachher_json, ip, geraet
+              vorher_json, nachher_json, geraet
 ```
 
 - **Protokoll unveränderbar:** Die API kennt kein Ändern/Löschen für `protokoll` und `buchungen`; zusätzlich verhindern SQLite-Trigger `UPDATE`/`DELETE` auf diesen Tabellen.
-- **Nichts wird gelöscht:** Sachen, Orte und Benutzer werden deaktiviert, damit alte Protokolleinträge lesbar bleiben.
-- `vorgang_id` fasst eine Mehrfach-Buchung zusammen („12 Sachen um 14:03 von A. nach Regal B3“).
-- Indizes auf `code`, `ort_id`, `sache_id`, `benutzer_id`, `zeitpunkt`.
+- **Nichts wird gelöscht:** Stücke, Plätze und Benutzer werden deaktiviert bzw. ausgemustert, damit alte Protokolleinträge lesbar bleiben.
+- **Korrektur statt Löschen:** Eine falsche Buchung wird durch eine Gegenbuchung rückgängig gemacht; beide stehen im Protokoll.
+- `vorgang_id` fasst eine Mehrfach-Buchung zusammen („12 Stücke um 14:03 nach Regal 12“).
+- Indizes auf `code`, `platz_id`, `stueck_id`, `benutzer_id`, `zeitpunkt`.
 - Migrationen versioniert unter `migrations/` (`wrangler d1 migrations`).
 
-## 7. Projektstruktur
+## 8. Projektstruktur
 
 ```
 web-scanner/
@@ -122,35 +129,58 @@ web-scanner/
 
 Secrets (Cloudflare-API-Token, Account-ID) liegen nur in GitHub-Secrets bzw. Cloudflare, nie im Repository.
 
-## 8. Umsetzungsphasen
+## 9. Umsetzungsphasen
 
 | Phase | Inhalt | Fertig, wenn … |
 |---|---|---|
-| **0 Grundgerüst** | Vite + React + Hono + Wrangler, D1 lokal, Tests, GitHub Actions, Vorschau-Deployment | `npm test` grün, App erreichbar unter `*.workers.dev` |
-| **1 Konten & Rollen** | Anmeldung, Sitzungen, Benutzerverwaltung, Rollenprüfung, erster Admin, Sperre bei Fehlversuchen | jede Rolle sieht/darf genau ihre Rechte (automatisch getestet) |
-| **2 Stammdaten** | Orte (Hierarchie), Sachen, CSV-Import, Etikettendruck | 100 Sachen per CSV importiert, Etiketten gedruckt und lesbar |
-| **3 Scanner** | Kamera-Mehrfach-Scan, Handscanner, manuelle Eingabe, Formatwahl | iPhone + Android lesen QR und EAN/Code 128 zuverlässig, 10 Codes in < 20 s |
-| **4 Abfrage & Buchen** | „Wo ist?“, Umbuchen, Einlagern, Entnehmen, Ausleihen, Verlauf | Umbuchung von 20 Sachen in < 1 min, alles oder nichts |
-| **5 Protokoll** | Protokollansicht mit Filtern (Person, Sache, Ort, Zeitraum), CSV-Export, Unveränderbarkeit | jede Änderung erscheint im Protokoll; Ändern/Löschen technisch unmöglich |
-| **6 Härtung** | Rate Limiting, tägliche Sicherung nach R2, Wiederherstellungstest, optional 2FA | Wiederherstellung einmal erfolgreich geprobt |
-| **7 Erweiterungen** | Offline-Modus (Warteschlange im Gerät, Abgleich bei Netz), Inventur, Mengenartikel, Auswertungen | nach Bedarf |
+| **0 Grundgerüst** | Vite + React + Hono + Wrangler, D1 lokal, Tests, GitHub Actions, Auslieferung | `npm test` grün, App erreichbar unter `*.workers.dev` |
+| **1 Konten & Rollen** | Anmeldung, Sitzungen, Benutzerverwaltung, Rollenprüfung, erster Admin, Sperre bei Fehlversuchen | jede Rolle darf genau ihre Rechte (automatisch getestet) |
+| **2 Plätze** | Abteilungen und Regale anlegen, QR-Etiketten drucken | Regal-Etikett gedruckt und von Handy gelesen |
+| **3 Scanner** | Kamera-Mehrfach-Scan, Handscanner, manuelle Eingabe | iPhone + Android lesen die vorhandenen Strichcodes zuverlässig, 10 Codes in < 20 s |
+| **4 Erfassen, Abfragen, Buchen** | Erst-Erfassung je Regal, „Wo ist?“, Umbuchen, Regal-Inhalt, Verlauf | ein Regal mit 30 Stücken in < 5 min erfasst; Umbuchung alles oder nichts |
+| **5 Protokoll** | Protokollansicht mit Filtern (Person, Stück, Platz, Zeitraum), CSV-Export, Unveränderbarkeit | jede Änderung erscheint im Protokoll; Ändern/Löschen technisch unmöglich |
+| **6 Absicherung** | tägliche Sicherung nach R2, Wiederherstellungstest | Wiederherstellung einmal erfolgreich geprobt |
+| **7 Erweiterungen** | ausgewählte Ideen aus Abschnitt 10 | nach Auswahl |
 
-## 9. Datenschutz
+## 10. Weitere Ideen (zur Auswahl)
 
-Das Protokoll speichert, **wer** wann **was** gebucht hat – das sind personenbezogene Daten.
-- Nur speichern, was für die Nachverfolgung nötig ist; IP-Adressen nach festgelegter Frist (z. B. 90 Tage) leeren.
-- Aufbewahrungsdauer des Protokolls festlegen.
-- Im Firmeneinsatz: Die App kann Arbeitsabläufe einzelner Personen nachvollziehbar machen. Mit **Betriebsrat** und **Datenschutzbeauftragtem** abstimmen, bevor sie produktiv geht. Keine Auswertungen „Leistung pro Person“ ohne Freigabe.
-- Cloudflare ist ein US-Anbieter; D1 kann mit einem Standorthinweis (z. B. Westeuropa) bzw. der EU-Jurisdiktion angelegt werden – vor dem Anlegen festlegen, weil es sich nachträglich nicht ändern lässt.
+Alle Ideen funktionieren im kostenlosen Tarif.
 
-## 10. Offene Fragen
+**Im Alltag schneller**
+- **Foto vom Regal** statt Einzelscan: ein Bild mit vielen Etiketten → alle Codes darin werden auf einmal erkannt.
+- **Suche ohne Scan:** nach Name, Kategorie oder Teil des Codes.
+- **Schnellwechsel am geteilten Gerät:** Tablet im Lager bleibt angemeldet, Benutzer wechseln per persönlicher PIN; Buchung läuft trotzdem auf die richtige Person.
+- **Rückgängig** der letzten Buchung per Knopf (als Gegenbuchung).
+- **Große Knöpfe, Dunkelmodus**, bedienbar mit Handschuhen.
 
-1. **Was sind die „Sachen“?** Einzelstücke mit eigenem Code (Werkzeug, Geräte, Kisten) oder auch Mengenartikel (z. B. 50 Stück Schrauben an einem Ort)?
-2. **Gibt es schon Codes** auf den Sachen oder an den Lagerplätzen? Wenn ja, welche Art (QR, EAN, Code 128)?
-3. **Wie sind die Orte aufgebaut?** z. B. Standort → Halle → Regal → Fach; können Sachen auch bei Personen oder in Fahrzeugen sein?
-4. **Rollen:** Passen die vier Rollen (Leser, Mitarbeiter, Leitung, Admin)? Wie viele Benutzer ungefähr?
-5. **Geräte:** Handys (iPhone/Android), Tablets, Handscanner?
-6. **Offline:** Gibt es Bereiche ohne Netz, in denen trotzdem gescannt werden muss?
-7. **Anmeldung:** Benutzername + Passwort, oder Microsoft-/Google-Konto?
-8. **Einsatz:** privat, Verein oder Firma (→ Betriebsrat/Datenschutz)?
-9. **Cloudflare:** Gibt es schon ein Konto und eine eigene Domain, oder erst `*.workers.dev`?
+**Mehr Überblick**
+- **Startseite mit Zahlen:** Stücke je Abteilung, letzte Bewegungen, Stücke ohne Platz.
+- **Ladenhüter:** Stücke, die seit X Monaten nicht bewegt wurden.
+- **Vermisst-Liste:** Stück als vermisst markieren; wer es irgendwo scannt, bekommt sofort einen Hinweis „Gefunden! Hier buchen?“.
+- **Inventur je Regal:** Regal scannen, alles scannen, was drin liegt → Liste „fehlt / zusätzlich / gehört woanders hin“, mit einem Tipp korrigieren.
+
+**Mehr Informationen am Stück**
+- **Fotos** zu Stücken (R2), damit man weiß, wonach man sucht.
+- **Zustand melden:** „defekt“ mit Foto und Notiz; Liste aller defekten Stücke.
+- **Prüf- und Wartungstermine** (z. B. Prüfung elektrischer Geräte, Kalibrierung) mit Fälligkeitsliste und Hinweis beim Scannen „Prüfung überfällig“.
+- **Eigene Felder** je Kategorie (z. B. Seriennummer, Hersteller, Kaufdatum).
+
+**Ausleihe**
+- **An Person ausgeben** mit Rückgabedatum; Liste „überfällig“; Rückgabe per Scan.
+- **Reservieren:** Stück für einen Termin vormerken.
+
+**Daten rein und raus**
+- **Excel-/CSV-Import** vorhandener Listen (Stücke mit Code, Name, Platz).
+- **Excel-/CSV-Export** von Bestand, Protokoll, Regal-Inhalt.
+
+**Technik**
+- **Offline-Modus:** In Bereichen ohne Netz weiterscannen; Buchungen werden auf dem Gerät gesammelt und bei Netz automatisch übertragen.
+- **Behälter:** Kisten bekommen einen eigenen Code; Kiste umbuchen bewegt alles darin mit.
+
+## 11. Offene Fragen
+
+1. Welche **Strichcode-Art** kleben auf den Stücken (Foto eines Etiketts genügt)?
+2. Braucht es unter dem Regal noch **Fächer**, oder reicht Abteilung → Regal?
+3. Passen die vier **Rollen** (Leser, Mitarbeiter, Leitung, Admin)?
+4. **Geräte:** Handys (iPhone/Android), Tablets, Handscanner?
+5. Gibt es schon ein **Cloudflare-Konto**? (Für die Auslieferung wird später ein API-Token als GitHub-Secret gebraucht.)
