@@ -1,6 +1,6 @@
 # Web Scanner – Projektplan
 
-Stand: 05.10.2026 · Status: **Grundentscheidungen getroffen, Ideenliste zur Auswahl (Abschnitt 10)**
+Stand: 05.10.2026 · Status: **Phasen 0–5 umgesetzt** (siehe Abschnitt 9), Ideenliste zur Auswahl (Abschnitt 10)
 
 ## 1. Ziel
 
@@ -34,8 +34,8 @@ Handy / Tablet / PC (Browser, als App installierbar – PWA)
 Cloudflare Worker (eine Anwendung: liefert Frontend + API)
   ├─ API mit Hono (TypeScript)
   ├─ Anmeldung, Rollenprüfung bei JEDER Anfrage auf dem Server
-  ├─ Cloudflare D1 (SQLite-Datenbank): Benutzer, Stücke, Plätze, Buchungen, Protokoll
-  └─ Cloudflare R2: tägliche Sicherung der Datenbank (Cron-Trigger), später Fotos
+  └─ Cloudflare D1 (SQLite-Datenbank): Benutzer, Stücke, Plätze, Buchungen, Protokoll
+     Schema spielt der Worker beim ersten Aufruf selbst ein (kein extra Schritt beim Veröffentlichen)
 ```
 
 | Baustein | Wahl | Begründung |
@@ -43,7 +43,7 @@ Cloudflare Worker (eine Anwendung: liefert Frontend + API)
 | Hosting | **Cloudflare Workers mit statischen Assets** | Frontend und API in einem Projekt, HTTPS automatisch (nötig für die Kamera) |
 | API | **Hono** | klein, für Workers gebaut, TypeScript |
 | Datenbank | **Cloudflare D1** (SQLite) | Stücke ↔ Plätze ↔ Buchungen sind relationale Daten; Transaktionen per `batch`; Time Travel 7 Tage im kostenlosen Tarif |
-| Sicherung | **R2** + Cron-Trigger | tägliche Kopie zusätzlich zu Time Travel, bleibt im kostenlosen R2-Kontingent |
+| Sicherung | D1 **Time Travel** + JSON-Download für Admins | R2 muss im Dashboard gesondert aktiviert werden – vorerst nicht nötig; tägliche R2-Sicherung bleibt als Erweiterung möglich |
 | Scannen | **BarcodeDetector-API** mit Paket `barcode-detector` als Ersatz (zxing-cpp als WebAssembly) | auf Android-Chrome eingebaut; auf iPhone/Safari und Windows-Chrome übernimmt der Ersatz; erkennt mehrere Codes in einem Bild |
 | Frontend | **React + Vite + TypeScript**, PWA | auf dem Handy als App installierbar |
 | Tests | **Vitest** mit `@cloudflare/vitest-pool-workers`, **Playwright** | testet API gegen echtes D1 lokal |
@@ -63,7 +63,7 @@ Cloudflare Worker (eine Anwendung: liefert Frontend + API)
 ## 5. Abläufe
 
 1. **„Wo ist?“ – Abfrage:** Codes scannen → Liste mit Abteilung/Regal, zuletzt bewegt von wem und wann. Unbekannte Codes sind rot markiert; mit Berechtigung direkt „Neu anlegen“.
-2. **Erst-Erfassung:** Regal-Etikett scannen → alle Stücke im Regal nacheinander scannen → unbekannte Stücke werden mit Name/Kategorie angelegt und gleich diesem Regal zugeordnet. So wird der Bestand Regal für Regal ins System gebracht.
+2. **Erst-Erfassung** (in der App Teil von „Einlagern“): Regal-Etikett scannen → alle Stücke im Regal nacheinander scannen → unbekannte Stücke werden mit Name/Kategorie angelegt und gleich diesem Regal zugeordnet. So wird der Bestand Regal für Regal ins System gebracht.
 3. **Umbuchen:** Ziel-Regal scannen → Stücke scannen → Übersicht „12 Stücke nach Montage / Regal 12“ → Bestätigen. Alle Buchungen in **einer Transaktion** (alles oder nichts).
 4. **Regal-Inhalt:** Regal scannen → alles, was laut System dort liegt.
 5. **Verlauf eines Stücks:** alle Bewegungen mit Zeit, Benutzer, von → nach.
@@ -82,10 +82,10 @@ Jeder Benutzer hat ein **eigenes Konto**. Keine Selbstregistrierung: Admins lege
 Die Rollen werden **auf dem Server** bei jeder Anfrage geprüft; die Oberfläche blendet nur zusätzlich aus, was jemand nicht darf.
 
 **Anmeldung:** eigene Benutzerverwaltung im Worker (kostenlos, keine Fremddienste).
-- Benutzername + Passwort; Passwörter mit PBKDF2-SHA256 (WebCrypto, 100 000 Runden = Obergrenze in Workers) und eigenem Salt gehasht.
+- Benutzername + Passwort; Passwörter mit PBKDF2-SHA256 (WebCrypto) und eigenem Salt gehasht. 20 000 Runden, damit das Anmelden in die 10 ms CPU des kostenlosen Tarifs passt; im bezahlten Tarif per `PBKDF2_RUNDEN` bis 100 000.
 - Sitzung als zufälliges Token; in der Datenbank nur der Hash. Cookie `HttpOnly`, `Secure`, `SameSite=Strict`, Ablauf nach Inaktivität.
 - Konto-Sperre nach mehreren Fehlversuchen (in D1 gezählt).
-- Der **erste Admin** wird einmalig per Befehl (`npm run admin:anlegen`) erstellt – kein Standardpasswort im Code.
+- Der **erste Admin** wird beim allerersten Aufruf der App im Browser angelegt (nur möglich, solange es keinen Benutzer gibt) – kein Standardpasswort im Code.
 
 ## 7. Datenmodell (D1)
 
@@ -131,16 +131,18 @@ Secrets (Cloudflare-API-Token, Account-ID) liegen nur in GitHub-Secrets bzw. Clo
 
 ## 9. Umsetzungsphasen
 
-| Phase | Inhalt | Fertig, wenn … |
-|---|---|---|
-| **0 Grundgerüst** | Vite + React + Hono + Wrangler, D1 lokal, Tests, GitHub Actions, Auslieferung | `npm test` grün, App erreichbar unter `*.workers.dev` |
-| **1 Konten & Rollen** | Anmeldung, Sitzungen, Benutzerverwaltung, Rollenprüfung, erster Admin, Sperre bei Fehlversuchen | jede Rolle darf genau ihre Rechte (automatisch getestet) |
-| **2 Plätze** | Abteilungen und Regale anlegen, QR-Etiketten drucken | Regal-Etikett gedruckt und von Handy gelesen |
-| **3 Scanner** | Kamera-Mehrfach-Scan, Handscanner, manuelle Eingabe | iPhone + Android lesen die vorhandenen Strichcodes zuverlässig, 10 Codes in < 20 s |
-| **4 Erfassen, Abfragen, Buchen** | Erst-Erfassung je Regal, „Wo ist?“, Umbuchen, Regal-Inhalt, Verlauf | ein Regal mit 30 Stücken in < 5 min erfasst; Umbuchung alles oder nichts |
-| **5 Protokoll** | Protokollansicht mit Filtern (Person, Stück, Platz, Zeitraum), CSV-Export, Unveränderbarkeit | jede Änderung erscheint im Protokoll; Ändern/Löschen technisch unmöglich |
-| **6 Absicherung** | tägliche Sicherung nach R2, Wiederherstellungstest | Wiederherstellung einmal erfolgreich geprobt |
-| **7 Erweiterungen** | ausgewählte Ideen aus Abschnitt 10 | nach Auswahl |
+| Phase | Inhalt | Fertig, wenn … | Stand |
+|---|---|---|---|
+| **0 Grundgerüst** | Vite + React + Hono + Wrangler, D1 lokal, Tests, GitHub Actions, Auslieferung | `npm test` grün, App erreichbar unter `*.workers.dev` | ✅ gebaut; Veröffentlichung auf Cloudflare steht aus (README) |
+| **1 Konten & Rollen** | Anmeldung, Sitzungen, Benutzerverwaltung, Rollenprüfung, erster Admin, Sperre bei Fehlversuchen | jede Rolle darf genau ihre Rechte (automatisch getestet) | ✅ |
+| **2 Plätze** | Abteilungen und Regale anlegen, QR-Etiketten drucken | Regal-Etikett gedruckt und von Handy gelesen | ✅ (Test mit echtem Drucker/Handy steht aus) |
+| **3 Scanner** | Kamera-Mehrfach-Scan, Foto, Handscanner, manuelle Eingabe | iPhone + Android lesen die vorhandenen Strichcodes zuverlässig, 10 Codes in < 20 s | ✅ (mit simulierter Kamera getestet; Test mit echten Etiketten steht aus) |
+| **4 Erfassen, Abfragen, Buchen** | Erst-Erfassung je Regal, „Wo ist?“, Umbuchen, Regal-Inhalt, Verlauf | ein Regal mit 30 Stücken in < 5 min erfasst; Umbuchung alles oder nichts | ✅ |
+| **5 Protokoll** | Protokollansicht mit Filtern (Person, Zeitraum), CSV-Export, Unveränderbarkeit | jede Änderung erscheint im Protokoll; Ändern/Löschen technisch unmöglich | ✅ |
+| **6 Absicherung** | Sicherung (Time Travel + JSON-Download), Wiederherstellungstest | Wiederherstellung einmal erfolgreich geprobt | teilweise: Download da, Wiederherstellung noch nicht geprobt |
+| **7 Erweiterungen** | ausgewählte Ideen aus Abschnitt 10 | nach Auswahl | offen |
+
+**Umgesetzt aus der Ideenliste:** Foto vom Regal (alle Codes auf einmal), Suche ohne Scan, Startseite mit Zahlen, Status „defekt“.
 
 ## 10. Weitere Ideen (zur Auswahl)
 
@@ -179,8 +181,8 @@ Alle Ideen funktionieren im kostenlosen Tarif.
 
 ## 11. Offene Fragen
 
-1. Welche **Strichcode-Art** kleben auf den Stücken (Foto eines Etiketts genügt)?
-2. Braucht es unter dem Regal noch **Fächer**, oder reicht Abteilung → Regal?
+1. Welche **Strichcode-Art** kleben auf den Stücken (Foto eines Etiketts genügt)? Die App liest alle gängigen; mit einem echten Etikett testen.
+2. Braucht es unter dem Regal noch **Fächer**? (In der App schon möglich, aber optional.)
 3. Passen die vier **Rollen** (Leser, Mitarbeiter, Leitung, Admin)?
 4. **Geräte:** Handys (iPhone/Android), Tablets, Handscanner?
-5. Gibt es schon ein **Cloudflare-Konto**? (Für die Auslieferung wird später ein API-Token als GitHub-Secret gebraucht.)
+5. **Cloudflare-Konto** anlegen und das Repository verbinden (Anleitung im README) – ein API-Token ist dafür nicht nötig.

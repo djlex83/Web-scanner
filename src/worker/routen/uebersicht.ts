@@ -1,0 +1,77 @@
+import { Hono } from "hono";
+import type { Uebersicht } from "../../gemeinsam/typen";
+import { plaetzeLaden } from "../db/abfragen";
+import { braucht, protokollEintrag, type AppEnv } from "../kontext";
+import { buchungenAbfragen } from "./buchungen";
+
+/** Beginn des heutigen Tages nach deutscher Zeit, als UTC-Zeitstempel. */
+function tagesbeginnBerlin(): string {
+  const nun = new Date();
+  const datum = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Berlin" }).format(nun);
+  const name = new Intl.DateTimeFormat("en-US", { timeZone: "Europe/Berlin", timeZoneName: "longOffset" })
+    .formatToParts(nun)
+    .find((t) => t.type === "timeZoneName")?.value;
+  const versatz = name?.replace("GMT", "") || "+00:00";
+  return new Date(`${datum}T00:00:00${versatz}`).toISOString();
+}
+
+export const uebersichtRouten = new Hono<AppEnv>();
+
+uebersichtRouten.get("/", braucht("abfragen"), async (c) => {
+  const db = c.env.DB;
+  const heute = tagesbeginnBerlin();
+
+  const [zahlen, bewegungen, karte] = await Promise.all([
+    db
+      .prepare(
+        `SELECT
+          (SELECT COUNT(*) FROM stuecke WHERE status != 'ausgemustert') AS stuecke,
+          (SELECT COUNT(*) FROM stuecke WHERE status != 'ausgemustert' AND platz_id IS NULL) AS ohne_platz,
+          (SELECT COUNT(*) FROM stuecke WHERE status = 'defekt') AS defekt,
+          (SELECT COUNT(*) FROM plaetze WHERE aktiv = 1) AS plaetze`,
+      )
+      .first<{ stuecke: number; ohne_platz: number; defekt: number; plaetze: number }>(),
+    db.prepare("SELECT COUNT(*) AS n FROM buchungen WHERE zeitpunkt >= ?").bind(heute).first<{ n: number }>(),
+    plaetzeLaden(db),
+  ]);
+  const letzte = await buchungenAbfragen(db, karte, { limit: 8 });
+  const antwort: Uebersicht = {
+    stuecke: zahlen?.stuecke ?? 0,
+    ohne_platz: zahlen?.ohne_platz ?? 0,
+    defekt: zahlen?.defekt ?? 0,
+    plaetze: zahlen?.plaetze ?? 0,
+    bewegungen_heute: bewegungen?.n ?? 0,
+    letzte: letzte.eintraege,
+  };
+  return c.json(antwort);
+});
+
+/** Datensicherung als JSON (ohne Passwort-Hashes und Sitzungen). */
+uebersichtRouten.get("/sicherung", braucht("sicherung"), async (c) => {
+  const db = c.env.DB;
+  const [benutzer, plaetze, stuecke, buchungen, protokoll] = await Promise.all([
+    db.prepare("SELECT id, benutzername, name, rolle, aktiv, erstellt_am, letzte_anmeldung FROM benutzer").all(),
+    db.prepare("SELECT * FROM plaetze").all(),
+    db.prepare("SELECT * FROM stuecke").all(),
+    db.prepare("SELECT * FROM buchungen").all(),
+    db.prepare("SELECT id, zeitpunkt, benutzer_id, aktion, objekt_typ, objekt_id, text, vorher_json, nachher_json FROM protokoll").all(),
+  ]);
+  await protokollEintrag(c, {
+    aktion: "sicherung",
+    objekt_typ: "system",
+    text: "Datensicherung heruntergeladen",
+  }).run();
+  const tag = new Date().toISOString().slice(0, 10);
+  return c.json(
+    {
+      erstellt_am: new Date().toISOString(),
+      benutzer: benutzer.results,
+      plaetze: plaetze.results,
+      stuecke: stuecke.results,
+      buchungen: buchungen.results,
+      protokoll: protokoll.results,
+    },
+    200,
+    { "content-disposition": `attachment; filename="web-scanner-sicherung-${tag}.json"` },
+  );
+});
