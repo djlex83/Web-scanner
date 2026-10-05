@@ -1,11 +1,11 @@
 import { ArrowLeft, Printer } from "lucide-react";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import type { Platz } from "../../gemeinsam/typen";
 import { QrCode } from "../komponenten/QrCode";
 import { useGespeichert, useLaden } from "../lib/hooks";
 import { Segmente } from "../ui/formular";
-import { Knopf } from "../ui/knopf";
+import { Knopf, SymbolKnopf } from "../ui/knopf";
 import { FehlerHinweis, Laden } from "../ui/zustand";
 
 // Maße gängiger A4-Etikettenbögen (in mm)
@@ -23,6 +23,22 @@ function schrift(name: string, format: Format): number {
   return Math.max(min, Math.min(max, (max * zeichen) / Math.max(laengstesWort, zeichen)));
 }
 
+// A4 in CSS-Pixeln (96 dpi)
+const A4_BREITE_PX = (210 / 25.4) * 96;
+const A4_HOEHE_PX = (297 / 25.4) * 96;
+
+/** Verkleinerung der Bogen-Vorschau, damit A4 auch aufs Handy passt (nie größer als 100 %). */
+function useVorschauMassstab(): number {
+  const [m, setM] = useState(1);
+  useEffect(() => {
+    const anpassen = () => setM(Math.min(1, (document.documentElement.clientWidth - 32) / A4_BREITE_PX));
+    anpassen();
+    window.addEventListener("resize", anpassen);
+    return () => window.removeEventListener("resize", anpassen);
+  }, []);
+  return m;
+}
+
 /** Druckansicht für Platz-Etiketten. */
 export default function Etiketten() {
   const [param] = useSearchParams();
@@ -37,6 +53,7 @@ export default function Etiketten() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [daten, param]);
 
+  const massstab = useVorschauMassstab();
   const f = FORMATE[format];
   const proBogen = f.spalten * f.zeilen;
   const boegen: Platz[][] = [];
@@ -45,33 +62,40 @@ export default function Etiketten() {
   return (
     <div className="min-h-dvh bg-flaeche-2 print:bg-white">
       <div className="nicht-drucken sticky top-0 z-10 border-b border-rand bg-flaeche/90 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-4xl flex-wrap items-center gap-3 px-4 py-3">
-          <Knopf art="leise" symbol={<ArrowLeft className="size-5" />} onClick={() => navigate(-1)}>
-            Zurück
-          </Knopf>
-          <div className="min-w-0 flex-1">
-            <h1 className="text-lg font-bold">Etiketten drucken</h1>
-            <p className="text-[13px] text-gedaempft">
-              {plaetze.length} Etiketten · {boegen.length} {boegen.length === 1 ? "Bogen" : "Bögen"} · {f.name}
-            </p>
+        <div className="mx-auto max-w-4xl space-y-2 px-4 py-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="flex min-w-0 flex-1 items-center gap-1">
+              <SymbolKnopf beschriftung="Zurück" onClick={() => navigate(-1)} className="-ml-2">
+                <ArrowLeft className="size-6" />
+              </SymbolKnopf>
+              <div className="min-w-0">
+                <h1 className="text-lg font-bold leading-tight">Etiketten drucken</h1>
+                <p className="text-[13px] text-gedaempft">
+                  {plaetze.length} {plaetze.length === 1 ? "Etikett" : "Etiketten"} · {boegen.length}{" "}
+                  {boegen.length === 1 ? "Bogen" : "Bögen"} · {f.name}
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Segmente
+                beschriftung="Etikettenformat"
+                wert={format}
+                aendern={setFormat}
+                optionen={[
+                  { wert: "klein", text: "Klein" },
+                  { wert: "gross", text: "Groß" },
+                ]}
+                className="flex-1 sm:w-56 sm:flex-none"
+              />
+              <Knopf art="primaer" symbol={<Printer className="size-5" />} onClick={() => window.print()} disabled={!plaetze.length}>
+                Drucken
+              </Knopf>
+            </div>
           </div>
-          <Segmente
-            beschriftung="Etikettenformat"
-            wert={format}
-            aendern={setFormat}
-            optionen={[
-              { wert: "klein", text: "Klein" },
-              { wert: "gross", text: "Groß" },
-            ]}
-            className="w-56"
-          />
-          <Knopf art="primaer" symbol={<Printer className="size-5" />} onClick={() => window.print()} disabled={!plaetze.length}>
-            Drucken
-          </Knopf>
+          <p className="text-[13px] text-gedaempft">
+            Tipp: Im Druckdialog „Tatsächliche Größe“ bzw. Skalierung 100 % wählen und Ränder auf „Keine“ stellen.
+          </p>
         </div>
-        <p className="mx-auto max-w-4xl px-4 pb-3 text-[13px] text-gedaempft">
-          Tipp: Im Druckdialog „Tatsächliche Größe“ bzw. Skalierung 100 % wählen und Ränder auf „Keine“ stellen.
-        </p>
       </div>
 
       {fehler && (
@@ -81,12 +105,17 @@ export default function Etiketten() {
       )}
       {!daten && !fehler && <Laden />}
 
-      <div className="flex flex-col items-center gap-8 py-8 print:block print:p-0">
+      <div className="flex flex-col items-center gap-6 px-4 py-6 print:block print:p-0">
         {boegen.map((bogen, i) => (
+          // Vorschau auf den Bildschirm verkleinert; gedruckt wird in Originalgröße
           <div
             key={i}
-            className="relative shrink-0 bg-white text-black shadow-hoch print:shadow-none"
-            style={{ width: "210mm", height: "297mm", breakAfter: "page", overflow: "hidden" }}
+            className="shrink-0 print:h-auto! print:w-auto!"
+            style={{ width: A4_BREITE_PX * massstab, height: A4_HOEHE_PX * massstab }}
+          >
+          <div
+            className="relative origin-top-left bg-white text-black shadow-hoch print:transform-none! print:shadow-none"
+            style={{ width: "210mm", height: "297mm", breakAfter: "page", overflow: "hidden", transform: `scale(${massstab})` }}
           >
             {bogen.map((p, j) => {
               const spalte = j % f.spalten;
@@ -118,6 +147,7 @@ export default function Etiketten() {
                 </div>
               );
             })}
+          </div>
           </div>
         ))}
       </div>
