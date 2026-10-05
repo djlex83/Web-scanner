@@ -22,10 +22,10 @@ authRouten.post("/einrichten", async (c) => {
   const e = await eingabe(c, einrichtenSchema);
   const hash = await passwortHashen(e.passwort, runden(c.env));
   const erg = await c.env.DB.prepare(
-    `INSERT INTO benutzer (benutzername, name, rolle, passwort_hash, erstellt_am)
-     SELECT ?, ?, 'admin', ?, ? WHERE NOT EXISTS (SELECT 1 FROM benutzer)`,
+    `INSERT INTO benutzer (benutzername, name, rolle, passwort_hash, erstellt_am, letzte_anmeldung)
+     SELECT ?, ?, 'admin', ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM benutzer)`,
   )
-    .bind(e.benutzername, e.name, hash, jetzt())
+    .bind(e.benutzername, e.name, hash, jetzt(), jetzt())
     .run();
   if (!erg.meta.changes) fehler(409, "Die App ist bereits eingerichtet");
   const id = erg.meta.last_row_id;

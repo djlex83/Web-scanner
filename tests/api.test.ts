@@ -10,6 +10,8 @@ describe("Einrichten und Anmelden", () => {
 
     const admin = await adminEinrichten();
     expect((await admin.get("/auth/ich")).daten.benutzer).toMatchObject({ rolle: "admin", name: "Chef Admin" });
+    const liste = await admin.get("/benutzer");
+    expect(liste.daten[0].letzte_anmeldung).not.toBeNull();
     expect((await gast.get("/auth/einrichten")).daten).toEqual({ noetig: false });
 
     const zweiter = await gast.post("/auth/einrichten", { benutzername: "xy", name: "X", passwort: "geheim-12345" });
