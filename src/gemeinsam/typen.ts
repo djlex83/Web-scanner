@@ -45,6 +45,30 @@ export interface Platz extends PlatzKurz {
   anzahl: number;
 }
 
+export interface StueckKurz {
+  id: number;
+  code: string;
+  name: string;
+}
+
+export interface AusleiheKurz {
+  id: number;
+  /** Person, die das Stück hat */
+  an: string;
+  /** Rückgabe bis (JJJJ-MM-TT) */
+  bis: string | null;
+  seit: string;
+}
+
+export interface PruefPlan {
+  /** z. B. "Elektroprüfung (DGUV V3)" */
+  art: string | null;
+  /** Intervall in Monaten */
+  intervall: number | null;
+  /** nächster Termin (JJJJ-MM-TT) */
+  naechste: string | null;
+}
+
 export interface Stueck {
   id: number;
   code: string;
@@ -58,6 +82,64 @@ export interface Stueck {
   erstellt_am: string;
   /** null = kein Foto; sonst Version für die Bild-Adresse */
   foto_version: number | null;
+  /** wird bei der Inventur erwartet */
+  inventur: boolean;
+  vermisst_seit: string | null;
+  /** ist selbst ein Behälter (Kiste) */
+  behaelter: boolean;
+  /** Anzahl Stücke im Behälter */
+  inhalt: number;
+  /** liegt in diesem Behälter */
+  in_behaelter: StueckKurz | null;
+  ausleihe: AusleiheKurz | null;
+  pruefung: PruefPlan;
+}
+
+export type PruefErgebnis = "bestanden" | "mangel" | "nicht_bestanden";
+
+export const PRUEF_ERGEBNIS_NAME: Record<PruefErgebnis, string> = {
+  bestanden: "Bestanden",
+  mangel: "Mit Mängeln",
+  nicht_bestanden: "Nicht bestanden",
+};
+
+export interface Pruefung {
+  id: number;
+  datum: string;
+  ergebnis: PruefErgebnis;
+  notiz: string | null;
+  naechste: string | null;
+  benutzer: string;
+}
+
+export interface Ausleihe {
+  id: number;
+  stueck: Stueck;
+  an: string;
+  bis: string | null;
+  notiz: string | null;
+  ausgegeben_am: string;
+  ausgegeben_von: string;
+  zurueck_am: string | null;
+  zurueck_von: string | null;
+}
+
+export interface InventurEintrag {
+  id: number;
+  platz: PlatzKurz | null;
+  benutzer: string;
+  zeitpunkt: string;
+  erwartet: number;
+  gefunden: number;
+  fehlend: number;
+  zusaetzlich: number;
+  verliehen: number;
+}
+
+export interface InventurErgebnis extends InventurEintrag {
+  fehlende: StueckKurz[];
+  zusaetzliche: StueckKurz[];
+  vorgang_id: string | null;
 }
 
 export interface Buchung {
@@ -69,7 +151,9 @@ export interface Buchung {
   von: string | null;
   nach: string | null;
   notiz: string | null;
-  stueck?: { id: number; code: string; name: string };
+  /** mit dem Behälter mitbewegt */
+  mitgefuehrt: boolean;
+  stueck?: StueckKurz;
 }
 
 export interface ProtokollEintrag {
@@ -93,6 +177,11 @@ export interface Uebersicht {
   defekt: number;
   plaetze: number;
   bewegungen_heute: number;
+  vermisst: number;
+  verliehen: number;
+  verliehen_ueberfaellig: number;
+  pruefung_ueberfaellig: number;
+  pruefung_bald: number;
   letzte: Buchung[];
 }
 

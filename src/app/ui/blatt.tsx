@@ -75,7 +75,10 @@ export function Blatt({
           </SymbolKnopf>
         </div>
         <div className="overflow-y-auto px-5 pb-5">{children}</div>
-        {fuss && <div className="sicher-unten border-t border-rand px-5 py-4">{fuss}</div>}
+        {fuss && (
+          // Unten mindestens 16 px Abstand, am iPhone zusätzlich Platz für den Home-Balken
+          <div className="border-t border-rand px-5 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:pb-5">{fuss}</div>
+        )}
       </div>
     </div>,
     document.body,

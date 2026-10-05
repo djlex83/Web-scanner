@@ -3,6 +3,7 @@ import { darf } from "../../gemeinsam/rechte";
 import type { ProtokollEintrag, Seite } from "../../gemeinsam/typen";
 import { plaetzeLaden } from "../db/abfragen";
 import { benutzerVon, braucht, type AppEnv, type Ctx } from "../kontext";
+import { csv, csvAntwort, ortszeit } from "../csv";
 import { buchungenAbfragen, type BuchungsFilter } from "./buchungen";
 
 export const protokollRouten = new Hono<AppEnv>();
@@ -50,29 +51,6 @@ async function protokollAbfragen(db: D1Database, f: Filter, limit: number): Prom
     .bind(...werte, limit + 1)
     .all<ProtokollEintrag>();
   return { eintraege: results.slice(0, limit), weitere: results.length > limit };
-}
-
-const ortszeit = new Intl.DateTimeFormat("de-DE", {
-  timeZone: "Europe/Berlin",
-  dateStyle: "short",
-  timeStyle: "medium",
-});
-
-function csv(kopf: string[], zeilen: (string | number | null)[][]): string {
-  const feld = (v: string | number | null) => {
-    const s = v == null ? "" : String(v);
-    return /[";\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-  };
-  // BOM + Semikolon, damit Excel (deutsch) Umlaute und Spalten richtig erkennt
-  return "﻿" + [kopf, ...zeilen].map((z) => z.map(feld).join(";")).join("\r\n") + "\r\n";
-}
-
-function csvAntwort(c: Ctx, name: string, inhalt: string) {
-  const tag = new Date().toISOString().slice(0, 10);
-  return c.body(inhalt, 200, {
-    "content-type": "text/csv; charset=utf-8",
-    "content-disposition": `attachment; filename="${name}-${tag}.csv"`,
-  });
 }
 
 protokollRouten.get("/", braucht("abfragen"), async (c) => {

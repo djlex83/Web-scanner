@@ -19,6 +19,10 @@ const Protokoll = lazy(() => import("./seiten/Protokoll"));
 const Benutzer = lazy(() => import("./seiten/Benutzer"));
 const Konto = lazy(() => import("./seiten/Konto"));
 const Kategorien = lazy(() => import("./seiten/Kategorien"));
+const Ausleihen = lazy(() => import("./seiten/Ausleihen"));
+const Pruefungen = lazy(() => import("./seiten/Pruefungen"));
+const Inventur = lazy(() => import("./seiten/Inventur"));
+const InventurPlatz = lazy(() => import("./seiten/InventurPlatz"));
 const Mehr = lazy(() => import("./seiten/Konto").then((m) => ({ default: m.Mehr })));
 
 function Nur({ recht, children }: { recht: Recht; children: ReactNode }) {
@@ -35,7 +39,7 @@ function Inhalt() {
   return (
     <Suspense fallback={<Laden />}>
       <Routes>
-        <Route path="/etiketten" element={<Nur recht="plaetze_verwalten"><Etiketten /></Nur>} />
+        <Route path="/etiketten" element={<Nur recht="erfassen"><Etiketten /></Nur>} />
         <Route element={<Rahmen />}>
           <Route index element={<Start />} />
           <Route path="scannen" element={<Scannen />} />
@@ -44,6 +48,10 @@ function Inhalt() {
           <Route path="kategorien" element={<Nur recht="stuecke_verwalten"><Kategorien /></Nur>} />
           <Route path="plaetze" element={<Plaetze />} />
           <Route path="plaetze/:id" element={<PlatzDetail />} />
+          <Route path="ausleihen" element={<Ausleihen />} />
+          <Route path="pruefungen" element={<Pruefungen />} />
+          <Route path="inventur" element={<Inventur />} />
+          <Route path="inventur/:id" element={<Nur recht="buchen"><InventurPlatz /></Nur>} />
           <Route path="protokoll" element={<Protokoll />} />
           <Route path="benutzer" element={<Nur recht="benutzer_verwalten"><Benutzer /></Nur>} />
           <Route path="konto" element={<Konto />} />

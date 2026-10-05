@@ -1,10 +1,11 @@
-import { AlertTriangle, ArrowRight, ArrowRightLeft, Boxes, MapPinOff, Printer, Repeat2, ScanSearch, Warehouse } from "lucide-react";
+import { AlertTriangle, ArrowRight, ArrowRightLeft, Boxes, Handshake, MapPinOff, Printer, Repeat2, ScanSearch, SearchX, Warehouse, Wrench } from "lucide-react";
+import type { ReactNode } from "react";
 import { Link } from "react-router";
 import type { Uebersicht } from "../../gemeinsam/typen";
 import { BewegungsZeile } from "../komponenten/BewegungsZeile";
 import { useLaden } from "../lib/hooks";
 import { useIch, useSitzung } from "../lib/sitzung";
-import { Abschnitt, Kennzahl, Liste } from "../ui/karte";
+import { Abschnitt, Kennzahl, Liste, Zeile } from "../ui/karte";
 import { kl } from "../ui/kl";
 import { FehlerHinweis, Leer, Skelett } from "../ui/zustand";
 
@@ -49,6 +50,8 @@ export default function Start() {
       {fehler && <FehlerHinweis text={fehler} nochmal={neuLaden} />}
 
       {daten && daten.plaetze === 0 && darf("plaetze_verwalten") && <ErsteSchritte />}
+
+      {daten && <Hinweise u={daten} />}
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {daten ? (
@@ -158,6 +161,39 @@ function ErsteSchritte() {
             </span>
             <ArrowRight className="size-5 text-gedaempft" />
           </Link>
+        ))}
+      </Liste>
+    </Abschnitt>
+  );
+}
+
+/** Was Aufmerksamkeit braucht: Vermisstes, überfällige Rückgaben und Prüfungen. */
+function Hinweise({ u }: { u: Uebersicht }) {
+  const liste: { zu: string; symbol: ReactNode; titel: string; unter: string; ton: string }[] = [];
+  const gefahr = "bg-gefahr-weich text-gefahr-text";
+  const warnung = "bg-warnung-weich text-warnung-text";
+  if (u.vermisst)
+    liste.push({ zu: "/stuecke?merkmal=vermisst", symbol: <SearchX />, titel: `${u.vermisst} vermisst`, unter: "Wer es findet: einfach scannen", ton: gefahr });
+  if (u.verliehen_ueberfaellig)
+    liste.push({ zu: "/ausleihen", symbol: <Handshake />, titel: `${u.verliehen_ueberfaellig} Rückgabe${u.verliehen_ueberfaellig === 1 ? "" : "n"} überfällig`, unter: `${u.verliehen} insgesamt verliehen`, ton: gefahr });
+  else if (u.verliehen)
+    liste.push({ zu: "/ausleihen", symbol: <Handshake />, titel: `${u.verliehen} verliehen`, unter: "Alle Rückgaben im Plan", ton: "bg-primaer-weich text-primaer-text" });
+  if (u.pruefung_ueberfaellig)
+    liste.push({ zu: "/pruefungen", symbol: <Wrench />, titel: `${u.pruefung_ueberfaellig} Prüfung${u.pruefung_ueberfaellig === 1 ? "" : "en"} überfällig`, unter: u.pruefung_bald ? `${u.pruefung_bald} weitere in den nächsten 30 Tagen` : "Termin abgelaufen", ton: gefahr });
+  else if (u.pruefung_bald)
+    liste.push({ zu: "/pruefungen", symbol: <Wrench />, titel: `${u.pruefung_bald} Prüfung${u.pruefung_bald === 1 ? "" : "en"} bald fällig`, unter: "in den nächsten 30 Tagen", ton: warnung });
+  if (!liste.length) return null;
+  return (
+    <Abschnitt titel="Zu erledigen">
+      <Liste>
+        {liste.map((h) => (
+          <Zeile
+            key={h.zu + h.titel}
+            zu={h.zu}
+            bild={<span className={kl("flex size-11 shrink-0 items-center justify-center rounded-xl [&_svg]:size-5", h.ton)}>{h.symbol}</span>}
+            titel={h.titel}
+            unter={h.unter}
+          />
         ))}
       </Liste>
     </Abschnitt>

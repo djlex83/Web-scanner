@@ -3,21 +3,28 @@ import { createContext, useCallback, useContext, useState, type ReactNode } from
 import { kl } from "./kl";
 
 type Art = "erfolg" | "fehler" | "info";
+/** Knopf in der Meldung, z. B. „Rückgängig“ */
+export interface MeldungsAktion {
+  text: string;
+  ausfuehren: () => void;
+}
 interface Meldung {
   id: number;
   art: Art;
   text: string;
+  aktion?: MeldungsAktion;
 }
 
-const Kontext = createContext<(text: string, art?: Art) => void>(() => {});
+const Kontext = createContext<(text: string, art?: Art, aktion?: MeldungsAktion) => void>(() => {});
 
 /** Kurze Rückmeldungen ("Toast") unten über der Navigation. */
 export function MeldungenAnbieter({ children }: { children: ReactNode }) {
   const [liste, setListe] = useState<Meldung[]>([]);
-  const zeigen = useCallback((text: string, art: Art = "erfolg") => {
+  const zeigen = useCallback((text: string, art: Art = "erfolg", aktion?: MeldungsAktion) => {
     const id = Date.now() + Math.random();
-    setListe((l) => [...l.slice(-2), { id, art, text }]);
-    setTimeout(() => setListe((l) => l.filter((m) => m.id !== id)), art === "fehler" ? 6000 : 3500);
+    setListe((l) => [...l.slice(-2), { id, art, text, aktion }]);
+    // Mit Knopf länger sichtbar, damit man ihn erwischt
+    setTimeout(() => setListe((l) => l.filter((m) => m.id !== id)), aktion ? 9000 : art === "fehler" ? 6000 : 3500);
   }, []);
 
   return (
@@ -39,7 +46,19 @@ export function MeldungenAnbieter({ children }: { children: ReactNode }) {
             {m.art === "erfolg" && <CheckCircle2 className="size-5 shrink-0 text-erfolg" />}
             {m.art === "fehler" && <XCircle className="size-5 shrink-0 text-gefahr" />}
             {m.art === "info" && <Info className="size-5 shrink-0 text-primaer" />}
-            {m.text}
+            <span className="min-w-0 flex-1">{m.text}</span>
+            {m.aktion && (
+              <button
+                type="button"
+                onClick={() => {
+                  setListe((l) => l.filter((x) => x.id !== m.id));
+                  m.aktion!.ausfuehren();
+                }}
+                className="-my-1 -mr-1 h-10 shrink-0 rounded-xl bg-hg/15 px-3 text-sm font-bold transition hover:bg-hg/25 active:scale-95"
+              >
+                {m.aktion.text}
+              </button>
+            )}
           </div>
         ))}
       </div>

@@ -74,19 +74,34 @@ export const platzAendernSchema = z.object({
   aktiv: z.boolean().optional(),
 });
 
-export const stueckAnlegenSchema = z.object({
-  code: text(200),
-  name: text(150),
-  kategorie: optText(80),
-  beschreibung: optText(1000),
-  platz_id: z.number().int().positive().nullish(),
-});
+const datum = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Datum als JJJJ-MM-TT");
+const ids = (max = 300) => z.array(z.number().int().positive()).min(1).max(max);
+
+export const stueckAnlegenSchema = z
+  .object({
+    /** leer nur bei Behältern – dann vergibt der Server einen Code */
+    code: optText(200),
+    name: text(150),
+    kategorie: optText(80),
+    beschreibung: optText(1000),
+    platz_id: z.number().int().positive().nullish(),
+    /** gleich in diesen Behälter legen (statt platz_id) */
+    in_behaelter_id: z.number().int().positive().nullish(),
+    behaelter: z.boolean().optional().default(false),
+    inventur: z.boolean().optional().default(true),
+  })
+  .refine((e) => e.code || e.behaelter, { message: "Pflichtfeld", path: ["code"] });
 
 export const stueckAendernSchema = z.object({
   name: text(150).optional(),
   kategorie: optText(80),
   beschreibung: optText(1000),
   status: z.enum(["vorhanden", "defekt", "ausgemustert"]).optional(),
+  behaelter: z.boolean().optional(),
+  inventur: z.boolean().optional(),
+  pruef_art: optText(100),
+  pruef_intervall: z.number().int().min(1).max(120).nullish(),
+  pruef_naechste: datum.nullish(),
 });
 
 export const kategorieStilSchema = z.object({
@@ -98,8 +113,46 @@ export const scanSchema = z.object({
   codes: z.array(z.string().max(200)).min(1).max(300),
 });
 
-export const buchenSchema = z.object({
-  nach_platz_id: z.number().int().positive(),
-  stueck_ids: z.array(z.number().int().positive()).min(1).max(300),
+export const buchenSchema = z
+  .object({
+    nach_platz_id: z.number().int().positive().nullish(),
+    /** Ziel ist ein Behälter statt eines Platzes */
+    nach_behaelter_id: z.number().int().positive().nullish(),
+    stueck_ids: ids(),
+    notiz: optText(500),
+  })
+  .refine((e) => !e.nach_platz_id !== !e.nach_behaelter_id, { message: "Genau ein Ziel angeben", path: ["nach_platz_id"] });
+
+export const rueckgaengigSchema = z.object({
+  vorgang_id: z.string().uuid(),
+});
+
+export const stueckListeSchema = z.object({
+  stueck_ids: ids(),
   notiz: optText(500),
+});
+
+export const ausleihenSchema = z.object({
+  stueck_ids: ids(),
+  an: text(100),
+  bis: datum.nullish(),
+  notiz: optText(500),
+});
+
+export const pruefungSchema = z.object({
+  stueck_id: z.number().int().positive(),
+  datum,
+  ergebnis: z.enum(["bestanden", "mangel", "nicht_bestanden"]),
+  notiz: optText(1000),
+  /** leer = aus dem Intervall berechnen */
+  naechste: datum.nullish(),
+});
+
+export const inventurSchema = z.object({
+  platz_id: z.number().int().positive(),
+  gefunden_ids: z.array(z.number().int().positive()).max(2000),
+  /** Stücke, die hier gefunden wurden, aber woanders eingetragen sind, hierher buchen */
+  zusaetzliche_buchen: z.boolean(),
+  /** Fehlende Stücke als vermisst melden */
+  fehlende_vermisst: z.boolean(),
 });

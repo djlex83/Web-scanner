@@ -72,11 +72,34 @@ export interface StueckZeile {
   bewegt_von: string | null;
   erstellt_am: string;
   foto_version: number | null;
+  inventur: number;
+  vermisst_seit: string | null;
+  behaelter: number;
+  in_behaelter_id: number | null;
+  behaelter_code: string | null;
+  behaelter_name: string | null;
+  inhalt: number;
+  ausleihe_id: number | null;
+  ausleihe_an: string | null;
+  ausleihe_bis: string | null;
+  ausleihe_seit: string | null;
+  pruef_art: string | null;
+  pruef_intervall: number | null;
+  pruef_naechste: string | null;
 }
 
+/** Stück mit Behälter, offener Ausleihe und Inhaltsanzahl; Bedingungen mit Alias "s" anhängen. */
 export const STUECK_SELECT = `SELECT s.id, s.code, s.name, s.beschreibung, s.kategorie, s.status, s.platz_id,
-  s.bewegt_am, b.name AS bewegt_von, s.erstellt_am, s.foto_version
-  FROM stuecke s LEFT JOIN benutzer b ON b.id = s.bewegt_von_id`;
+  s.bewegt_am, b.name AS bewegt_von, s.erstellt_am, s.foto_version,
+  s.inventur, s.vermisst_seit, s.behaelter, s.in_behaelter_id, k.code AS behaelter_code, k.name AS behaelter_name,
+  CASE WHEN s.behaelter = 1 THEN
+    (SELECT COUNT(*) FROM stuecke i WHERE i.in_behaelter_id = s.id AND i.status != 'ausgemustert') ELSE 0 END AS inhalt,
+  a.id AS ausleihe_id, a.an AS ausleihe_an, a.bis AS ausleihe_bis, a.ausgegeben_am AS ausleihe_seit,
+  s.pruef_art, s.pruef_intervall, s.pruef_naechste
+  FROM stuecke s
+  LEFT JOIN benutzer b ON b.id = s.bewegt_von_id
+  LEFT JOIN stuecke k ON k.id = s.in_behaelter_id
+  LEFT JOIN ausleihen a ON a.stueck_id = s.id AND a.zurueck_am IS NULL`;
 
 export function zuStueck(karte: PlatzKarte, z: StueckZeile): Stueck {
   return {
@@ -91,6 +114,15 @@ export function zuStueck(karte: PlatzKarte, z: StueckZeile): Stueck {
     bewegt_von: z.bewegt_von,
     erstellt_am: z.erstellt_am,
     foto_version: z.foto_version,
+    inventur: z.inventur === 1,
+    vermisst_seit: z.vermisst_seit,
+    behaelter: z.behaelter === 1,
+    inhalt: z.inhalt,
+    in_behaelter: z.in_behaelter_id ? { id: z.in_behaelter_id, code: z.behaelter_code!, name: z.behaelter_name! } : null,
+    ausleihe: z.ausleihe_id
+      ? { id: z.ausleihe_id, an: z.ausleihe_an!, bis: z.ausleihe_bis, seit: z.ausleihe_seit! }
+      : null,
+    pruefung: { art: z.pruef_art, intervall: z.pruef_intervall, naechste: z.pruef_naechste },
   };
 }
 

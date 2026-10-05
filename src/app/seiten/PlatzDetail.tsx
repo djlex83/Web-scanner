@@ -1,4 +1,4 @@
-import { ArrowRightLeft, ChevronRight, PackageOpen, Pencil, Plus, Printer, Warehouse } from "lucide-react";
+import { ArrowRightLeft, ChevronRight, ClipboardCheck, Download, PackageOpen, Pencil, Plus, Printer, Warehouse } from "lucide-react";
 import { useState } from "react";
 import { Link, useParams } from "react-router";
 import { PLATZ_TYP_NAME, type Platz, type PlatzTyp, type Stueck } from "../../gemeinsam/typen";
@@ -6,12 +6,13 @@ import { StueckBild } from "../komponenten/kategorie";
 import { PlatzAnlegen, PlatzBearbeiten } from "../komponenten/PlatzAnlegen";
 import { natuerlich } from "../komponenten/PlatzWahl";
 import { QrCode } from "../komponenten/QrCode";
+import { StueckMerkmale } from "../komponenten/StueckMerkmale";
 import { anzahl } from "../lib/format";
 import { useLaden } from "../lib/hooks";
 import { useSitzung } from "../lib/sitzung";
-import { Abzeichen, StatusAbzeichen } from "../ui/abzeichen";
+import { Abzeichen } from "../ui/abzeichen";
 import { Abschnitt, Karte, Liste, Zeile } from "../ui/karte";
-import { Knopf, KnopfLink } from "../ui/knopf";
+import { Knopf, KnopfLink, knopfKlassen } from "../ui/knopf";
 import { useMeldung } from "../ui/meldungen";
 import { SeitenKopf } from "../ui/seitenkopf";
 import { FehlerHinweis, Laden, Leer } from "../ui/zustand";
@@ -71,11 +72,19 @@ export default function PlatzDetail() {
                 Hier einlagern
               </KnopfLink>
             )}
+            {darf("buchen") && p.aktiv && (
+              <KnopfLink to={`/inventur/${p.id}`} symbol={<ClipboardCheck className="size-5" />}>
+                Inventur
+              </KnopfLink>
+            )}
             {verwalten && (
               <KnopfLink to={`/etiketten?ids=${p.id}`} symbol={<Printer className="size-5" />}>
                 Etikett
               </KnopfLink>
             )}
+            <a href={`/api/stuecke/csv?platz=${p.id}`} download title="Inhalt als Excel-Tabelle (CSV)" className={knopfKlassen("zweit")}>
+              <Download className="size-5" /> Export
+            </a>
           </div>
         </div>
       </Karte>
@@ -139,10 +148,12 @@ export default function PlatzDetail() {
                 unter={
                   <>
                     {s.platz && s.platz.id !== p.id && <span className="font-medium text-text">{s.platz.name} · </span>}
+                    {s.in_behaelter && <span className="font-medium text-text">{s.in_behaelter.name} · </span>}
                     <span className="font-mono">{s.code}</span>
+                    <StueckMerkmale stueck={s} max={2} mitBehaelter={false} className="mt-1" />
                   </>
                 }
-                rechts={s.status !== "vorhanden" && <StatusAbzeichen status={s.status} />}
+                rechts={s.behaelter && <Abzeichen ton="primaer">Behälter</Abzeichen>}
               />
             ))}
           </Liste>

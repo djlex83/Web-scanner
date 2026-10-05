@@ -1,10 +1,10 @@
-import { MapPin, ScanBarcode } from "lucide-react";
+import { Box, MapPin, ScanBarcode } from "lucide-react";
 import { useEffect, useState } from "react";
-import type { Platz, PlatzKurz, Stueck } from "../../gemeinsam/typen";
+import type { Stueck } from "../../gemeinsam/typen";
 import { fehlerText, senden } from "../lib/api";
 import { fotoHochladen } from "../lib/bild";
 import { Blatt } from "../ui/blatt";
-import { Eingabe, Feld, Textfeld } from "../ui/formular";
+import { Eingabe, Feld, Schalter, Textfeld } from "../ui/formular";
 import { kl } from "../ui/kl";
 import { Knopf } from "../ui/knopf";
 import { FehlerHinweis } from "../ui/zustand";
@@ -12,23 +12,26 @@ import { FotoFeld } from "./FotoBereich";
 import { KategorieSymbol, kategorienAktualisieren, useKategorien } from "./kategorie";
 import { PlatzWahl } from "./PlatzWahl";
 import { useMeldung } from "../ui/meldungen";
+import { zielPfad, type Ziel } from "../lib/ziel";
 
-/** Neues Stück zu einem gescannten Code anlegen – optional gleich auf einen Platz. */
+/** Neues Stück zu einem gescannten Code anlegen – optional gleich auf einen Platz oder in einen Behälter. */
 export function ErfassenBlatt({
   code,
-  platz: startPlatz,
+  ziel: startZiel,
   schliessen,
   fertig,
 }: {
   code: string | null;
-  platz?: PlatzKurz | null;
+  ziel?: Ziel | null;
   schliessen: () => void;
   fertig: (s: Stueck) => void;
 }) {
   const [name, setName] = useState("");
   const [kategorie, setKategorie] = useState("");
   const [beschreibung, setBeschreibung] = useState("");
-  const [platz, setPlatz] = useState<PlatzKurz | Platz | null>(startPlatz ?? null);
+  const [ziel, setZiel] = useState<Ziel | null>(startZiel ?? null);
+  const [inventur, setInventur] = useState(true);
+  const [behaelter, setBehaelter] = useState(false);
   const [wahlOffen, setWahlOffen] = useState(false);
   const [laedt, setLaedt] = useState(false);
   const [fehler, setFehler] = useState<string | null>(null);
@@ -47,9 +50,11 @@ export function ErfassenBlatt({
       setBeschreibung("");
       setFoto(null);
       setFehler(null);
-      setPlatz(startPlatz ?? null);
+      setZiel(startZiel ?? null);
+      setInventur(true);
+      setBehaelter(false);
     }
-  }, [code, startPlatz]);
+  }, [code, startZiel]);
 
   async function speichern() {
     if (!code) return;
@@ -65,7 +70,10 @@ export function ErfassenBlatt({
         name,
         kategorie: kategorie || null,
         beschreibung: beschreibung || null,
-        platz_id: platz?.id ?? null,
+        platz_id: ziel?.art === "platz" ? ziel.platz.id : null,
+        in_behaelter_id: ziel?.art === "behaelter" ? ziel.stueck.id : null,
+        inventur,
+        behaelter,
       });
       let ergebnis = s;
       if (foto) {
@@ -92,7 +100,7 @@ export function ErfassenBlatt({
         titel="Neues Stück erfassen"
         fuss={
           <Knopf art="primaer" groesse="l" breit laedt={laedt} onClick={() => void speichern()}>
-            {platz ? "Erfassen und einlagern" : "Erfassen"}
+            {ziel ? "Erfassen und einlagern" : "Erfassen"}
           </Knopf>
         }
       >
@@ -147,9 +155,13 @@ export function ErfassenBlatt({
                 onClick={() => setWahlOffen(true)}
                 className="flex min-h-12 w-full items-center gap-3 rounded-xl border border-rand-stark bg-flaeche px-4 py-2 text-left transition hover:bg-flaeche-2"
               >
-                <MapPin className="size-5 shrink-0 text-gedaempft" />
-                <span className={kl("flex-1 text-[15px]", platz ? "font-semibold" : "text-gedaempft")}>
-                  {platz ? platz.pfad : "Noch keinem Platz zuordnen"}
+                {ziel?.art === "behaelter" ? (
+                  <Box className="size-5 shrink-0 text-gedaempft" />
+                ) : (
+                  <MapPin className="size-5 shrink-0 text-gedaempft" />
+                )}
+                <span className={kl("flex-1 text-[15px]", ziel ? "font-semibold" : "text-gedaempft")}>
+                  {ziel ? zielPfad(ziel) : "Noch keinem Platz zuordnen"}
                 </span>
                 <span className="text-sm font-semibold text-primaer-text">Ändern</span>
               </button>
@@ -158,6 +170,22 @@ export function ErfassenBlatt({
           <div className="space-y-1.5">
             <div className="px-1 text-sm font-semibold">Foto <span className="font-normal text-gedaempft">(optional)</span></div>
             <FotoFeld datei={foto} setDatei={setFoto} />
+          </div>
+          <div className="divide-y divide-rand overflow-hidden rounded-2xl border border-rand">
+            <Schalter
+              an={inventur}
+              aendern={setInventur}
+              beschriftung="Bei der Inventur zählen"
+              beschreibung="Aus z. B. für Verbrauchsmaterial"
+            />
+            {ziel?.art !== "behaelter" && (
+              <Schalter
+                an={behaelter}
+                aendern={setBehaelter}
+                beschriftung="Ist ein Behälter"
+                beschreibung="Kiste oder Koffer, in den andere Stücke kommen"
+              />
+            )}
           </div>
           <Feld beschriftung="Beschreibung" hinweis="Optional">
             {(p) => (
@@ -169,8 +197,8 @@ export function ErfassenBlatt({
       <PlatzWahl
         offen={wahlOffen}
         schliessen={() => setWahlOffen(false)}
-        waehlen={(p) => setPlatz(p)}
-        aktuell={platz?.id}
+        waehlen={(p) => setZiel({ art: "platz", platz: p })}
+        aktuell={ziel?.art === "platz" ? ziel.platz.id : undefined}
         titel="Platz für das Stück"
       />
     </>

@@ -123,6 +123,76 @@ export const MIGRATIONEN: { version: number; sql: string[] }[] = [
       )`,
     ],
   },
+  {
+    version: 3,
+    sql: [
+      // Inventur: 1 = Stück wird bei der Inventur erwartet, 0 = nicht inventurpflichtig
+      `ALTER TABLE stuecke ADD COLUMN inventur INTEGER NOT NULL DEFAULT 1`,
+      `ALTER TABLE stuecke ADD COLUMN vermisst_seit TEXT`,
+      // Behälter (Kiste): ein Stück, in dem andere Stücke liegen; Inhalt wandert beim Umbuchen mit
+      `ALTER TABLE stuecke ADD COLUMN behaelter INTEGER NOT NULL DEFAULT 0`,
+      `ALTER TABLE stuecke ADD COLUMN in_behaelter_id INTEGER REFERENCES stuecke(id)`,
+      // Prüfung und Wartung: Art, Intervall in Monaten, nächster Termin (JJJJ-MM-TT)
+      `ALTER TABLE stuecke ADD COLUMN pruef_art TEXT`,
+      `ALTER TABLE stuecke ADD COLUMN pruef_intervall INTEGER`,
+      `ALTER TABLE stuecke ADD COLUMN pruef_naechste TEXT`,
+      `CREATE INDEX stuecke_behaelter ON stuecke(in_behaelter_id)`,
+      `CREATE INDEX stuecke_pruefung ON stuecke(pruef_naechste) WHERE pruef_naechste IS NOT NULL`,
+      `CREATE INDEX stuecke_vermisst ON stuecke(vermisst_seit) WHERE vermisst_seit IS NOT NULL`,
+      `ALTER TABLE buchungen ADD COLUMN von_behaelter_id INTEGER REFERENCES stuecke(id)`,
+      `ALTER TABLE buchungen ADD COLUMN nach_behaelter_id INTEGER REFERENCES stuecke(id)`,
+      // 1 = Stück wurde mit seinem Behälter mitbewegt (wird beim Rückgängigmachen übersprungen)
+      `ALTER TABLE buchungen ADD COLUMN mitgefuehrt INTEGER NOT NULL DEFAULT 0`,
+      `CREATE INDEX buchungen_vorgang ON buchungen(vorgang_id)`,
+      `CREATE TABLE ausleihen (
+        id INTEGER PRIMARY KEY,
+        stueck_id INTEGER NOT NULL REFERENCES stuecke(id),
+        an TEXT NOT NULL,
+        bis TEXT,
+        notiz TEXT,
+        benutzer_id INTEGER NOT NULL REFERENCES benutzer(id),
+        ausgegeben_am TEXT NOT NULL,
+        zurueck_am TEXT,
+        zurueck_von_id INTEGER REFERENCES benutzer(id)
+      )`,
+      // Ein Stück kann nur einmal gleichzeitig verliehen sein
+      `CREATE UNIQUE INDEX ausleihen_offen ON ausleihen(stueck_id) WHERE zurueck_am IS NULL`,
+      `CREATE INDEX ausleihen_zeit ON ausleihen(ausgegeben_am)`,
+      `CREATE TABLE pruefungen (
+        id INTEGER PRIMARY KEY,
+        stueck_id INTEGER NOT NULL REFERENCES stuecke(id),
+        datum TEXT NOT NULL,
+        ergebnis TEXT NOT NULL CHECK (ergebnis IN ('bestanden','mangel','nicht_bestanden')),
+        notiz TEXT,
+        naechste TEXT,
+        benutzer_id INTEGER NOT NULL REFERENCES benutzer(id),
+        erfasst_am TEXT NOT NULL
+      )`,
+      `CREATE INDEX pruefungen_stueck ON pruefungen(stueck_id, datum)`,
+      `CREATE TABLE inventuren (
+        id INTEGER PRIMARY KEY,
+        platz_id INTEGER NOT NULL REFERENCES plaetze(id),
+        benutzer_id INTEGER NOT NULL REFERENCES benutzer(id),
+        zeitpunkt TEXT NOT NULL,
+        erwartet INTEGER NOT NULL,
+        gefunden INTEGER NOT NULL,
+        fehlend INTEGER NOT NULL,
+        zusaetzlich INTEGER NOT NULL,
+        verliehen INTEGER NOT NULL,
+        details_json TEXT
+      )`,
+      `CREATE INDEX inventuren_platz ON inventuren(platz_id, zeitpunkt)`,
+      // Prüfnachweise und Inventuren sind wie das Protokoll unveränderbar
+      `CREATE TRIGGER pruefungen_kein_aendern BEFORE UPDATE ON pruefungen
+        BEGIN SELECT RAISE(ABORT, 'Pruefungen sind unveraenderbar'); END`,
+      `CREATE TRIGGER pruefungen_kein_loeschen BEFORE DELETE ON pruefungen
+        BEGIN SELECT RAISE(ABORT, 'Pruefungen sind unveraenderbar'); END`,
+      `CREATE TRIGGER inventuren_kein_aendern BEFORE UPDATE ON inventuren
+        BEGIN SELECT RAISE(ABORT, 'Inventuren sind unveraenderbar'); END`,
+      `CREATE TRIGGER inventuren_kein_loeschen BEFORE DELETE ON inventuren
+        BEGIN SELECT RAISE(ABORT, 'Inventuren sind unveraenderbar'); END`,
+    ],
+  },
 ];
 
 let bereit: Promise<void> | null = null;
@@ -148,10 +218,21 @@ async function aktuelleVersion(db: D1Database): Promise<number> {
   return zeile?.v ?? 0;
 }
 
+/** D1 im kostenlosen Tarif: höchstens 50 Abfragen je Aufruf – Platz für die eigentliche Anfrage lassen. */
+const MAX_JE_AUFRUF = 35;
+
+export class EinrichtungLaeuft extends Error {}
+
 async function migrieren(db: D1Database): Promise<void> {
   const version = await aktuelleVersion(db);
+  let anzahl = 0;
   for (const m of MIGRATIONEN) {
     if (m.version <= version) continue;
+    // Viele Migrationen auf einmal (neue Datenbank): auf mehrere Aufrufe verteilen
+    if (anzahl > 0 && anzahl + m.sql.length > MAX_JE_AUFRUF) {
+      throw new EinrichtungLaeuft("Datenbank wird eingerichtet – bitte die Seite neu laden.");
+    }
+    anzahl += m.sql.length + 1;
     try {
       // batch = eine Transaktion: entweder ganz oder gar nicht
       await db.batch([
