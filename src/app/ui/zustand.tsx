@@ -56,7 +56,7 @@ export function Leer({
       <div className="anim-schweben mb-4 flex size-16 items-center justify-center rounded-2xl bg-primaer-weich text-primaer-text [&_svg]:size-7">
         {symbol}
       </div>
-      <h3 className="text-lg font-semibold">{titel}</h3>
+      <h2 className="text-lg font-semibold">{titel}</h2>
       {text && <p className="mt-1 max-w-sm text-[15px] text-gedaempft">{text}</p>}
       {aktion && <div className="mt-5">{aktion}</div>}
     </div>

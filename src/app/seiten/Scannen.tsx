@@ -1,4 +1,4 @@
-import { ArrowRightLeft, Handshake, ListX, PackageCheck, ScanSearch, Undo2, Warehouse } from "lucide-react";
+import { ArrowRightLeft, Handshake, House, ListX, PackageCheck, ScanSearch, Undo2, Warehouse } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "react-router";
 import type { Platz, ScanTreffer, Stueck } from "../../gemeinsam/typen";
@@ -10,7 +10,7 @@ import { anzahl } from "../lib/format";
 import { signalFertig } from "../lib/rueckmeldung";
 import { useBuchungMelden } from "../lib/rueckgaengig";
 import { useSitzung } from "../lib/sitzung";
-import { nichtMoeglich, schonDort, zielFelder, type Ziel } from "../lib/ziel";
+import { mussZurueck, nichtMoeglich, schonDort, zielFelder, type Ziel } from "../lib/ziel";
 import { ManuelleEingabe, useHandscanner } from "../scanner/eingabe";
 import { Kamera } from "../scanner/Kamera";
 import { TrefferKarte } from "../scanner/TrefferKarte";
@@ -18,11 +18,11 @@ import { useScanListe, type Eintrag } from "../scanner/useScanListe";
 import { ZielKarte } from "../scanner/ZielKarte";
 import { ScanBild, useErfolg } from "../ui/bewegung";
 import { Abschnitt } from "../ui/karte";
-import { Segmente } from "../ui/formular";
+import { Schalter, Segmente } from "../ui/formular";
 import { Knopf } from "../ui/knopf";
 import { useMeldung } from "../ui/meldungen";
 
-type Modus = "suchen" | "einlagern" | "ausleihe";
+type Modus = "suchen" | "einlagern" | "ausleihe" | "zurueck";
 
 const stueckVon = (e: Eintrag): Stueck | null => (e.treffer?.art === "stueck" ? e.treffer.stueck : null);
 
@@ -31,6 +31,7 @@ const LEER_TEXT: Record<Modus, string> = {
   einlagern:
     "Scanne das Regal-Etikett oder einen Behälter und danach alle Stücke, die dort hinein sollen. Unbekannte Codes kannst du direkt erfassen.",
   ausleihe: "Scanne die Stücke. Freie Stücke gibst du an eine Person aus, verliehene nimmst du zurück.",
+  zurueck: "Scanne alles, was herumliegt – mit einem Tipp kommt jedes Stück zurück an seinen eigenen Stammplatz.",
 };
 
 export default function Scannen() {
@@ -41,7 +42,8 @@ export default function Scannen() {
   const [param, setParam] = useSearchParams();
   const kannBuchen = darf("buchen");
   const gewuenscht = param.get("modus");
-  const modus: Modus = kannBuchen && (gewuenscht === "einlagern" || gewuenscht === "ausleihe") ? gewuenscht : "suchen";
+  const modus: Modus =
+    kannBuchen && (gewuenscht === "einlagern" || gewuenscht === "ausleihe" || gewuenscht === "zurueck") ? gewuenscht : "suchen";
 
   const [ziel, setZiel] = useState<Ziel | null>(null);
   const [wahlOffen, setWahlOffen] = useState(false);
@@ -49,6 +51,7 @@ export default function Scannen() {
   const [neuErfasst, setNeuErfasst] = useState<Set<string>>(new Set());
   const [bucht, setBucht] = useState(false);
   const [ausgeben, setAusgeben] = useState<Stueck[] | null>(null);
+  const [neuerStamm, setNeuerStamm] = useState(false);
 
   // Ziel aus der Adresse übernehmen ("Hier einlagern" auf einer Platz-Seite, "Befüllen" bei einem Behälter)
   const zielParam = param.get("ziel");
@@ -67,6 +70,11 @@ export default function Scannen() {
 
   const beiTreffer = useCallback(
     (t: ScanTreffer) => {
+      if (modus === "zurueck" && t.art === "platz") {
+        liste.entfernen(t.code);
+        melden("Beim Zurückräumen nur Stücke scannen – jedes kennt seinen Stammplatz", "info");
+        return;
+      }
       if (modus !== "einlagern") return;
       // Im Einlagern-Modus ist ein Platz-Etikett immer das Ziel, ein Behälter nur, solange noch keins gewählt ist
       if (t.art === "platz") {
@@ -89,7 +97,10 @@ export default function Scannen() {
   const stuecke = liste.eintraege.map(stueckVon).filter((s): s is Stueck => !!s);
   const zuBuchen = ziel ? stuecke.filter((s) => !schonDort(ziel, s) && !nichtMoeglich(ziel, s)) : [];
   const offeneUnbekannte = liste.eintraege.filter((e) => e.treffer?.art === "unbekannt").length;
+  const passend = ziel ? stuecke.filter((s) => !nichtMoeglich(ziel, s)) : [];
   const frei = stuecke.filter((s) => !s.ausleihe && s.status !== "ausgemustert");
+  const zurueck = stuecke.filter(mussZurueck);
+  const ohneStamm = stuecke.filter((s) => s.am_stammplatz === null && s.status !== "ausgemustert").length;
   const verliehen = stuecke.filter((s) => s.ausleihe);
 
   function modusWechseln(m: Modus) {
@@ -114,15 +125,43 @@ export default function Scannen() {
     if (!ziel || !zuBuchen.length) return;
     setBucht(true);
     try {
+      // Mit „neuer Stammplatz“ auch Stücke, die schon dort liegen
       const r = await senden<{ gebucht: number; ziel: string; vorgang_id: string | null }>("/buchungen", {
         ...zielFelder(ziel),
-        stueck_ids: zuBuchen.map((s) => s.id),
+        stueck_ids: (neuerStamm ? passend : zuBuchen).map((s) => s.id),
+        stammplatz: neuerStamm,
       });
       signalFertig();
-      feiern(`${anzahl(r.gebucht, "Stück", "Stücke")} eingelagert`);
-      buchungMelden(`${anzahl(r.gebucht, "Stück", "Stücke")} nach ${r.ziel} gebucht`, r.vorgang_id);
+      feiern(r.gebucht ? `${anzahl(r.gebucht, "Stück", "Stücke")} eingelagert` : "Stammplatz festgelegt");
+      buchungMelden(
+        (r.gebucht ? `${anzahl(r.gebucht, "Stück", "Stücke")} nach ${r.ziel} gebucht` : `Stammplatz ${r.ziel} festgelegt`) +
+          (neuerStamm && r.gebucht ? " · neuer Stammplatz" : ""),
+        r.vorgang_id,
+      );
       liste.leeren((e) => e.treffer?.art === "stueck");
       setNeuErfasst(new Set());
+    } catch (e) {
+      melden(fehlerText(e), "fehler");
+    } finally {
+      setBucht(false);
+    }
+  }
+
+  async function zurueckraeumen() {
+    setBucht(true);
+    try {
+      const ids = new Set(zurueck.map((s) => s.id));
+      const r = await senden<{ gebucht: number; vorgang_id: string | null; ohne_stammplatz: { name: string }[] }>(
+        "/buchungen/zurueckraeumen",
+        { stueck_ids: [...ids] },
+      );
+      signalFertig();
+      feiern(`${anzahl(r.gebucht, "Stück", "Stücke")} zurückgeräumt`);
+      buchungMelden(`${anzahl(r.gebucht, "Stück", "Stücke")} an ihren Stammplatz gebucht`, r.vorgang_id);
+      liste.leeren((e) => {
+        const s = stueckVon(e);
+        return !!s && (ids.has(s.id) || s.am_stammplatz === true);
+      });
     } catch (e) {
       melden(fehlerText(e), "fehler");
     } finally {
@@ -164,7 +203,7 @@ export default function Scannen() {
   }
 
   // Aktionsleiste erst, wenn etwas gescannt ist – vorher erklärt die Ziel-Karte bzw. der Leertext alles
-  const mitLeiste = (modus === "einlagern" || modus === "ausleihe") && liste.eintraege.length > 0;
+  const mitLeiste = modus !== "suchen" && liste.eintraege.length > 0;
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
@@ -177,6 +216,7 @@ export default function Scannen() {
           optionen={[
             { wert: "suchen", text: "Wo ist?", symbol: <ScanSearch /> },
             { wert: "einlagern", text: "Einlagern", symbol: <ArrowRightLeft /> },
+            { wert: "zurueck", text: "Aufräumen", symbol: <House /> },
             { wert: "ausleihe", text: "Ausleihe", symbol: <Handshake /> },
           ]}
         />
@@ -189,6 +229,16 @@ export default function Scannen() {
       <ManuelleEingabe beiCode={(c) => liste.hinzufuegen([c])} />
 
       {modus === "einlagern" && <ZielKarte ziel={ziel} waehlen={() => setWahlOffen(true)} />}
+      {modus === "einlagern" && ziel && (
+        <div className="overflow-hidden rounded-2xl border border-rand bg-flaeche">
+          <Schalter
+            an={neuerStamm}
+            aendern={setNeuerStamm}
+            beschriftung="Als neuen Stammplatz festlegen"
+            beschreibung="Die Stücke gehören ab jetzt hierher (für „Aufräumen“)"
+          />
+        </div>
+      )}
 
       <Abschnitt
         titel={liste.eintraege.length ? `${modus === "suchen" ? "Gescannt" : "Stücke"} · ${liste.eintraege.length}` : undefined}
@@ -238,7 +288,7 @@ export default function Scannen() {
                 groesse="xl"
                 breit
                 laedt={bucht}
-                disabled={!!ziel && zuBuchen.length === 0}
+                disabled={!!ziel && zuBuchen.length === 0 && !(neuerStamm && passend.length)}
                 onClick={() => (ziel ? void buchen() : setWahlOffen(true))}
                 symbol={ziel ? <PackageCheck className="size-6" /> : <Warehouse className="size-6" />}
                 className="shadow-hoch"
@@ -247,9 +297,28 @@ export default function Scannen() {
                   ? "Ziel wählen"
                   : zuBuchen.length
                     ? `${anzahl(zuBuchen.length, "Stück", "Stücke")} einlagern`
+                    : neuerStamm && passend.length
+                      ? "Als Stammplatz festlegen"
                     : offeneUnbekannte
                       ? "Unbekannte zuerst erfassen"
                       : "Stücke scannen"}
+              </Knopf>
+            ) : modus === "zurueck" ? (
+              <Knopf
+                art="primaer"
+                groesse="xl"
+                breit
+                laedt={bucht}
+                disabled={zurueck.length === 0}
+                onClick={() => void zurueckraeumen()}
+                symbol={<House className="size-6" />}
+                className="shadow-hoch"
+              >
+                {zurueck.length
+                  ? `${anzahl(zurueck.length, "Stück", "Stücke")} zurückräumen`
+                  : ohneStamm
+                    ? "Kein Stammplatz bekannt"
+                    : "Alles am Stammplatz"}
               </Knopf>
             ) : (
               <>

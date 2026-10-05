@@ -1,4 +1,4 @@
-import { AlertTriangle, ArrowRight, ArrowRightLeft, Boxes, Handshake, MapPinOff, Printer, Repeat2, ScanSearch, SearchX, Warehouse, Wrench } from "lucide-react";
+import { AlertTriangle, ArrowRight, ArrowRightLeft, Boxes, Handshake, House, MapPinOff, Printer, Repeat2, ScanSearch, SearchX, Warehouse, Wrench } from "lucide-react";
 import type { ReactNode } from "react";
 import { Link } from "react-router";
 import type { Uebersicht } from "../../gemeinsam/typen";
@@ -183,6 +183,14 @@ function Hinweise({ u }: { u: Uebersicht }) {
     liste.push({ zu: "/pruefungen", symbol: <Wrench />, titel: `${u.pruefung_ueberfaellig} Prüfung${u.pruefung_ueberfaellig === 1 ? "" : "en"} überfällig`, unter: u.pruefung_bald ? `${u.pruefung_bald} weitere in den nächsten 30 Tagen` : "Termin abgelaufen", ton: gefahr });
   else if (u.pruefung_bald)
     liste.push({ zu: "/pruefungen", symbol: <Wrench />, titel: `${u.pruefung_bald} Prüfung${u.pruefung_bald === 1 ? "" : "en"} bald fällig`, unter: "in den nächsten 30 Tagen", ton: warnung });
+  if (u.nicht_am_stammplatz)
+    liste.push({
+      zu: "/stuecke?merkmal=fremd",
+      symbol: <House />,
+      titel: `${u.nicht_am_stammplatz} nicht am Stammplatz`,
+      unter: "Einsammeln und unter Scannen › Aufräumen zurückbuchen",
+      ton: "bg-primaer-weich text-primaer-text",
+    });
   if (!liste.length) return null;
   return (
     <Abschnitt titel="Zu erledigen">

@@ -20,6 +20,7 @@ Web-App für Handy, Tablet und PC. Läuft im **kostenlosen Tarif von Cloudflare*
   - [6. Benutzer verwalten](#6-benutzer-verwalten)
 - [Inventur](#inventur)
 - [Ausleihen und Rückgängig](#ausleihen-und-rückgängig)
+- [Stammplatz und Aufräumen](#stammplatz-und-aufräumen)
 - [Prüfung und Wartung](#prüfung-und-wartung)
 - [Behälter und Vermisst](#behälter-und-vermisst)
 - [Fotos und Kategorie-Symbole](#fotos-und-kategorie-symbole)
@@ -52,6 +53,7 @@ Web-App für Handy, Tablet und PC. Läuft im **kostenlosen Tarif von Cloudflare*
 | ↩️ **Rückgängig** | Nach jeder Buchung ein Knopf „Rückgängig“ – als Gegenbuchung, nichts wird gelöscht. |
 | 🔧 **Prüfung & Wartung** | Prüfart, Intervall und nächster Termin je Stück; Liste aller fälligen Prüfungen, Hinweis beim Scannen. |
 | 📦 **Behälter** | Kisten und Koffer mit eigenem Code. Kiste umbuchen = alles darin wandert mit. |
+| 🏠 **Aufräumen** | Alles scannen, was herumliegt – mit einem Tipp kommt jedes Stück zurück an seinen eigenen Stammplatz. |
 | 🔍 **Vermisst** | Stück als vermisst melden – wer es irgendwo scannt, bekommt sofort einen Hinweis. |
 | 🕓 **Protokoll** | Jede Bewegung und Änderung – wer, was, wann, von wo nach wo. Unveränderbar. Export als CSV für Excel. |
 | 👥 **Konten & Rollen** | Leser · Mitarbeiter · Leitung · Admin. Startpasswort muss geändert werden, Sperre nach 5 Fehlversuchen. |
@@ -127,6 +129,15 @@ Ein gescannter **Behälter zählt mit seinem Inhalt**. Beim Abschließen entsche
 - **Rückgängig:** Nach jeder Buchung erscheint kurz ein Knopf „Rückgängig“; die letzte eigene Bewegung lässt sich auch auf der Seite des Stücks zurücknehmen. Das geht 15 Minuten lang für eigene Buchungen (Leitung: jederzeit) und wird als Gegenbuchung protokolliert. Inzwischen weiterbewegte Stücke bleiben, wo sie sind.
 
 ![Ausleihe, Liste der Ausleihen, Rückgängig](docs/bilder/ausleihe.png)
+
+## Stammplatz und Aufräumen
+
+Jedes Stück hat einen **Stammplatz** – den Platz (oder Behälter), wo es hingehört.
+
+- Der Stammplatz wird **automatisch** gesetzt, wenn ein Stück zum ersten Mal eingelagert wird. Vorhandene Stücke bekommen beim Update ihren ersten Lagerplatz aus dem Verlauf.
+- **Ändern:** auf der Seite des Stücks unter „Stammplatz → Ändern“ (aktueller Ort, anderer Platz oder entfernen) – oder beim Einlagern den Schalter **„Als neuen Stammplatz festlegen“** einschalten, dann gilt das für alle gescannten Stücke.
+- **Aufräumen:** *Scannen → Aufräumen*, alles scannen, was herumliegt. Jedes Stück zeigt „Werkbank → Regal 2“. Ein Tipp auf **„… zurückräumen“** bucht alle auf einmal an ihren jeweiligen Stammplatz – in einem Vorgang, mit „Rückgängig“. Liegt der Stammplatz in einem Behälter, kommt das Stück zurück in den Behälter, egal wo dieser gerade steht.
+- Die Startseite und der Bestandsfilter **„Nicht am Stammplatz“** zeigen, was gerade woanders liegt. Einzelne Stücke lassen sich auch auf ihrer Seite mit „Zurück an den Stammplatz“ zurückbuchen.
 
 ## Prüfung und Wartung
 

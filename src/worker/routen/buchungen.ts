@@ -1,8 +1,8 @@
 import { Hono } from "hono";
 import { darf } from "../../gemeinsam/rechte";
-import { buchenSchema, rueckgaengigSchema } from "../../gemeinsam/schemas";
-import type { Buchung, BuchungsArt, Seite } from "../../gemeinsam/typen";
-import { platzPfad, plaetzeLaden, type PlatzKarte } from "../db/abfragen";
+import { buchenSchema, rueckgaengigSchema, stueckListeSchema } from "../../gemeinsam/schemas";
+import type { Buchung, BuchungsArt, Seite, StueckKurz } from "../../gemeinsam/typen";
+import { alsJson, platzPfad, plaetzeLaden, type PlatzKarte } from "../db/abfragen";
 import { bewegen, bewegungenZu, stueckeLaden, zielLaden, zielText, type Bewegung, type StueckOrt } from "../db/bewegen";
 import { benutzerVon, braucht, eingabe, fehler, jetzt, protokollEintrag, type AppEnv, type Ctx } from "../kontext";
 
@@ -97,6 +97,7 @@ export function umbuchenStatements(
     notiz?: string | null;
     objekt_id?: number | null;
     nachher?: Record<string, unknown>;
+    stamm?: "wenn_leer" | "nie";
   },
 ): D1PreparedStatement[] {
   const ich = benutzerVon(c);
@@ -109,7 +110,11 @@ export function umbuchenStatements(
     zurueck && `${zurueck} Ausleihe${zurueck === 1 ? "" : "n"} beendet`,
   ].filter(Boolean);
   return [
-    ...bewegen(c.env.DB, { vorgang: e.vorgang, benutzer_id: ich.id, zeit: jetzt(), notiz: e.notiz ?? null }, e.bewegungen),
+    ...bewegen(
+      c.env.DB,
+      { vorgang: e.vorgang, benutzer_id: ich.id, zeit: jetzt(), notiz: e.notiz ?? null, stamm: e.stamm },
+      e.bewegungen,
+    ),
     protokollEintrag(c, {
       aktion: e.aktion ?? "umgebucht",
       objekt_typ: "platz",
@@ -147,23 +152,45 @@ buchungenRouten.post("/", braucht("buchen"), async (c) => {
 
   const vorgang = crypto.randomUUID();
   const zielPfad = zielText(karte, ziel);
+  const stmts: D1PreparedStatement[] = [];
   if (bewegungen.length) {
     const erstes = stuecke.find((s) => s.id === bewegungen[0]!.s)!;
-    await c.env.DB.batch(
-      umbuchenStatements(c, karte, {
+    stmts.push(
+      ...umbuchenStatements(c, karte, {
         vorgang,
         bewegungen,
         stuecke,
         notiz: e.notiz,
         objekt_id: ziel.art === "platz" ? ziel.platz.id : null,
-        nachher: { nach: zielPfad },
+        nachher: { nach: zielPfad, stammplatz: e.stammplatz },
+        stamm: e.stammplatz ? "nie" : "wenn_leer",
         text:
-          bewegungen.length === 1
+          (bewegungen.length === 1
             ? `„${erstes.name}“ (${erstes.code}) → ${zielPfad}`
-            : `${bewegungen.length} Stücke → ${zielPfad}`,
+            : `${bewegungen.length} Stücke → ${zielPfad}`) + (e.stammplatz ? " (neuer Stammplatz)" : ""),
       }),
     );
   }
+  if (e.stammplatz) {
+    // auch für Stücke, die schon dort liegen
+    stmts.push(
+      c.env.DB.prepare(
+        "UPDATE stuecke SET stamm_platz_id = ?, stamm_behaelter_id = ? WHERE id IN (SELECT value FROM json_each(?))",
+      ).bind(ziel.art === "platz" ? ziel.platz.id : null, ziel.art === "behaelter" ? ziel.behaelter.id : null, alsJson(ids)),
+    );
+    if (!bewegungen.length) {
+      stmts.push(
+        protokollEintrag(c, {
+          aktion: "stammplatz",
+          objekt_typ: "platz",
+          objekt_id: ziel.art === "platz" ? ziel.platz.id : null,
+          text: `Stammplatz ${zielPfad} für ${ids.length === 1 ? `„${stuecke[0]!.name}“` : `${ids.length} Stücke`} festgelegt`,
+          nachher: { stammplatz: zielPfad, stuecke: stuecke.map((s) => s.code) },
+        }),
+      );
+    }
+  }
+  if (stmts.length) await c.env.DB.batch(stmts);
   return c.json({
     vorgang_id: bewegungen.length ? vorgang : null,
     gebucht: bewegungen.length,
@@ -228,9 +255,70 @@ buchungenRouten.post("/rueckgaengig", braucht("buchen"), async (c) => {
       stuecke,
       aktion: "rueckgaengig",
       notiz: "Rückgängig",
+      stamm: "nie",
       nachher: { rueckgaengig_von: vorgang_id },
       text: `Rückgängig: ${bewegungen.length === 1 ? `„${nachId.get(bewegungen[0]!.s)!.name}“ zurückgebucht` : `${bewegungen.length} Stücke zurückgebucht`}`,
     }),
   );
   return c.json({ vorgang_id: vorgang, zurueck: bewegungen.length, uebersprungen: results.length - bewegungen.length });
+});
+
+/**
+ * Zurückräumen: jedes Stück an seinen eigenen Stammplatz – alle in einem Vorgang.
+ * Stücke ohne Stammplatz werden übersprungen und zurückgemeldet.
+ */
+buchungenRouten.post("/zurueckraeumen", braucht("buchen"), async (c) => {
+  const e = await eingabe(c, stueckListeSchema);
+  const karte = await plaetzeLaden(c.env.DB);
+  const ids = [...new Set(e.stueck_ids)];
+  const stuecke = (await stueckeLaden(c.env.DB, ids)).filter((s) => s.status !== "ausgemustert");
+  const kisten = new Map(
+    (await stueckeLaden(c.env.DB, [...new Set(stuecke.flatMap((s) => (s.stamm_behaelter_id ? [s.stamm_behaelter_id] : [])))])).map(
+      (k) => [k.id, k],
+    ),
+  );
+  const bewegungen: Bewegung[] = [];
+  const ohne: StueckKurz[] = [];
+  let schonDort = 0;
+  for (const s of stuecke) {
+    let ziel: { p: number | null; b: number | null } | null = null;
+    const kiste = s.stamm_behaelter_id ? kisten.get(s.stamm_behaelter_id) : undefined;
+    if (kiste && s.behaelter !== 1) {
+      ziel = kiste.behaelter === 1 && kiste.status !== "ausgemustert" ? { p: kiste.platz_id, b: kiste.id } : kiste.platz_id ? { p: kiste.platz_id, b: null } : null;
+    } else if (s.stamm_platz_id && karte.get(s.stamm_platz_id)?.aktiv) {
+      ziel = { p: s.stamm_platz_id, b: null };
+    }
+    if (!ziel) {
+      ohne.push({ id: s.id, code: s.code, name: s.name });
+    } else if (s.platz_id === ziel.p && s.in_behaelter_id === ziel.b) {
+      schonDort++;
+    } else {
+      bewegungen.push({ s: s.id, ...ziel });
+    }
+  }
+  const vorgang = crypto.randomUUID();
+  if (bewegungen.length) {
+    const erstes = stuecke.find((s) => s.id === bewegungen[0]!.s)!;
+    const ziel = bewegungen[0]!.p ? platzPfad(karte, bewegungen[0]!.p) : "–";
+    await c.env.DB.batch(
+      umbuchenStatements(c, karte, {
+        vorgang,
+        bewegungen,
+        stuecke,
+        aktion: "zurueckgeraeumt",
+        notiz: "Zurückgeräumt",
+        stamm: "nie",
+        text:
+          bewegungen.length === 1
+            ? `Zurückgeräumt: „${erstes.name}“ (${erstes.code}) → ${ziel}`
+            : `Zurückgeräumt: ${bewegungen.length} Stücke an ihren Stammplatz`,
+      }),
+    );
+  }
+  return c.json({
+    vorgang_id: bewegungen.length ? vorgang : null,
+    gebucht: bewegungen.length,
+    schon_dort: schonDort,
+    ohne_stammplatz: ohne,
+  });
 });

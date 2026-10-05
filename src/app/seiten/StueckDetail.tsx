@@ -5,6 +5,7 @@ import {
   Copy,
   Handshake,
   History,
+  House,
   MapPin,
   PackagePlus,
   Pencil,
@@ -23,9 +24,11 @@ import { FotoBereich } from "../komponenten/FotoBereich";
 import { KategorieSymbol, kategorienAktualisieren, StueckBild, stilFuer, useKategorien } from "../komponenten/kategorie";
 import { PlatzWahl } from "../komponenten/PlatzWahl";
 import { PruefungBlatt } from "../komponenten/PruefungBlatt";
+import { StammplatzBlatt } from "../komponenten/StammplatzBlatt";
 import { StueckBearbeiten } from "../komponenten/StueckBearbeiten";
 import { datumText, istUeberfaellig, pruefStand, StueckMerkmale } from "../komponenten/StueckMerkmale";
 import { fehlerText, senden } from "../lib/api";
+import { stammPfad } from "../lib/ziel";
 import { tagesUeberschrift, vorWann, zeitpunkt } from "../lib/format";
 import { useLaden } from "../lib/hooks";
 import { useBuchungMelden } from "../lib/rueckgaengig";
@@ -60,6 +63,7 @@ export default function StueckDetail() {
   const [bearbeiten, setBearbeiten] = useState(false);
   const [ausgeben, setAusgeben] = useState(false);
   const [pruefen, setPruefen] = useState(false);
+  const [stammWahl, setStammWahl] = useState(false);
   const [laedt, setLaedt] = useState<string | null>(null);
 
   if (fehler) return <FehlerHinweis text={fehler} nochmal={neuLaden} />;
@@ -243,11 +247,52 @@ export default function StueckDetail() {
             </div>
           )}
         </dl>
+        <div className="flex items-center gap-3 border-t border-rand px-5 py-4">
+          <House className={kl("size-5 shrink-0", s.am_stammplatz === false ? "text-warnung-text" : "text-gedaempft")} />
+          <div className="min-w-0 flex-1">
+            <div className="text-[13px] text-gedaempft">Stammplatz</div>
+            <div className="truncate text-[15px] font-semibold">{stammPfad(s) ?? "nicht festgelegt"}</div>
+            {s.am_stammplatz === false && <div className="text-[13px] font-medium text-warnung-text">liegt gerade woanders</div>}
+          </div>
+          {darf("buchen") && (
+            <Knopf art="leise" className="h-10 px-3 text-sm" onClick={() => setStammWahl(true)}>
+              Ändern
+            </Knopf>
+          )}
+        </div>
       </Karte>
 
       <div className="grid grid-cols-2 gap-3">
+        {kannBuchen && s.am_stammplatz === false && (
+          <Knopf
+            art="primaer"
+            groesse="l"
+            className="col-span-2"
+            laedt={laedt === "zurueckraeumen"}
+            symbol={<House className="size-5" />}
+            onClick={async () => {
+              setLaedt("zurueckraeumen");
+              try {
+                const r = await senden<{ vorgang_id: string | null }>("/buchungen/zurueckraeumen", { stueck_ids: [s.id] });
+                buchungMelden(`Zurück an den Stammplatz ${stammPfad(s)}`, r.vorgang_id, () => void neuLaden());
+                await neuLaden();
+              } catch (e) {
+                melden(fehlerText(e), "fehler");
+              } finally {
+                setLaedt(null);
+              }
+            }}
+          >
+            Zurück an den Stammplatz
+          </Knopf>
+        )}
         {kannBuchen && (
-          <Knopf art="primaer" groesse="l" symbol={<ArrowRightLeft className="size-5" />} onClick={() => setWahl(true)}>
+          <Knopf
+            art={s.am_stammplatz === false ? "zweit" : "primaer"}
+            groesse="l"
+            symbol={<ArrowRightLeft className="size-5" />}
+            onClick={() => setWahl(true)}
+          >
             Umbuchen
           </Knopf>
         )}
@@ -428,6 +473,16 @@ export default function StueckDetail() {
           void neuLaden();
         }}
       />
+      {stammWahl && (
+        <StammplatzBlatt
+          stueck={s}
+          schliessen={() => setStammWahl(false)}
+          fertig={() => {
+            setStammWahl(false);
+            void neuLaden();
+          }}
+        />
+      )}
       {pruefen && (
         <PruefungBlatt
           stueck={s}

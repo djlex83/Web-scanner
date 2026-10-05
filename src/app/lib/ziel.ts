@@ -29,3 +29,17 @@ export function nichtMoeglich(z: Ziel, s: Stueck): string | null {
   if (z.art === "behaelter" && s.behaelter) return "Behälter passt nicht in Behälter";
   return null;
 }
+
+/** Stammplatz eines Stücks als Text („Lager › Regal 3 › Kiste 7“) oder null */
+export function stammPfad(s: Stueck): string | null {
+  if (s.stamm_behaelter) return s.stammplatz ? `${s.stammplatz.pfad} › ${s.stamm_behaelter.name}` : s.stamm_behaelter.name;
+  return s.stammplatz?.pfad ?? null;
+}
+
+/** Kurzname des Stammplatzes („Regal 3“ bzw. „Kiste 7“) */
+export function stammName(s: Stueck): string | null {
+  return s.stamm_behaelter?.name ?? s.stammplatz?.name ?? null;
+}
+
+/** Kann und muss das Stück zurückgeräumt werden? */
+export const mussZurueck = (s: Stueck) => s.am_stammplatz === false && s.status !== "ausgemustert";

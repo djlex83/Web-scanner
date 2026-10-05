@@ -120,8 +120,23 @@ export const buchenSchema = z
     nach_behaelter_id: z.number().int().positive().nullish(),
     stueck_ids: ids(),
     notiz: optText(500),
+    /** Ziel zugleich als neuen Stammplatz der Stücke festlegen */
+    stammplatz: z.boolean().optional().default(false),
   })
   .refine((e) => !e.nach_platz_id !== !e.nach_behaelter_id, { message: "Genau ein Ziel angeben", path: ["nach_platz_id"] });
+
+/** Stammplatz festlegen: Platz, Behälter, den aktuellen Ort – oder nichts davon = entfernen */
+export const stammplatzSchema = z
+  .object({
+    stueck_ids: ids(),
+    platz_id: z.number().int().positive().nullish(),
+    behaelter_id: z.number().int().positive().nullish(),
+    aktuell: z.boolean().optional(),
+  })
+  .refine((e) => [e.platz_id, e.behaelter_id, e.aktuell].filter(Boolean).length <= 1, {
+    message: "Höchstens ein Ziel angeben",
+    path: ["platz_id"],
+  });
 
 export const rueckgaengigSchema = z.object({
   vorgang_id: z.string().uuid(),

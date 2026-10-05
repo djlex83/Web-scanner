@@ -193,6 +193,30 @@ export const MIGRATIONEN: { version: number; sql: string[] }[] = [
         BEGIN SELECT RAISE(ABORT, 'Inventuren sind unveraenderbar'); END`,
     ],
   },
+  {
+    version: 4,
+    sql: [
+      // Stammplatz: wohin ein Stück gehört (Platz oder Behälter) – Ziel beim „Zurückräumen“
+      `ALTER TABLE stuecke ADD COLUMN stamm_platz_id INTEGER REFERENCES plaetze(id)`,
+      `ALTER TABLE stuecke ADD COLUMN stamm_behaelter_id INTEGER REFERENCES stuecke(id)`,
+      // Vorhandene Stücke: der erste Ort, an dem sie eingelagert wurden (Originalplatz)
+      `UPDATE stuecke SET stamm_behaelter_id = (
+         SELECT b.nach_behaelter_id FROM buchungen b
+         WHERE b.stueck_id = stuecke.id AND b.mitgefuehrt = 0 AND (b.nach_platz_id IS NOT NULL OR b.nach_behaelter_id IS NOT NULL)
+         ORDER BY b.id LIMIT 1)`,
+      `UPDATE stuecke SET stamm_platz_id = (
+         SELECT b.nach_platz_id FROM buchungen b
+         WHERE b.stueck_id = stuecke.id AND b.mitgefuehrt = 0 AND (b.nach_platz_id IS NOT NULL OR b.nach_behaelter_id IS NOT NULL)
+         ORDER BY b.id LIMIT 1)
+       WHERE stamm_behaelter_id IS NULL`,
+      `UPDATE stuecke SET stamm_platz_id = platz_id
+       WHERE stamm_platz_id IS NULL AND stamm_behaelter_id IS NULL AND platz_id IS NOT NULL`,
+      // Behälter liegen nie in Behältern: deren Stammplatz ist der Platz des alten Behälters
+      `UPDATE stuecke SET stamm_platz_id = (SELECT k.platz_id FROM stuecke k WHERE k.id = stuecke.stamm_behaelter_id),
+                          stamm_behaelter_id = NULL
+       WHERE behaelter = 1 AND stamm_behaelter_id IS NOT NULL`,
+    ],
+  },
 ];
 
 let bereit: Promise<void> | null = null;

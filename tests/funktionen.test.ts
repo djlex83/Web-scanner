@@ -259,3 +259,76 @@ describe("Einrichtung einer neuen Datenbank", () => {
     expect((await gast.get("/auth/einrichten")).daten).toEqual({ noetig: true });
   });
 });
+
+describe("Stammplatz und Zurückräumen", () => {
+  it("erster Ort wird Stammplatz; Zurückräumen bucht jedes Stück an seinen eigenen Stammplatz", async () => {
+    const { admin, r1, r2, ids } = await aufbau();
+    const leiter = (await admin.post("/stuecke", { code: "L-1", name: "Leiter", platz_id: r2.id })).daten;
+    const neu = (await admin.post("/stuecke", { code: "N-1", name: "Ohne Platz" })).daten;
+    expect((await admin.get(`/stuecke/${ids["A-1"]}`)).daten.stueck).toMatchObject({ stammplatz: { id: r1.id }, am_stammplatz: true });
+    expect(neu.am_stammplatz).toBeNull();
+
+    // alles durcheinander: A-1, A-2 nach Regal 2, Leiter nach Regal 1
+    await admin.post("/buchungen", { nach_platz_id: r2.id, stueck_ids: [ids["A-1"], ids["A-2"]] });
+    await admin.post("/buchungen", { nach_platz_id: r1.id, stueck_ids: [leiter.id] });
+    expect((await admin.get(`/stuecke/${ids["A-1"]}`)).daten.stueck).toMatchObject({ stammplatz: { id: r1.id }, am_stammplatz: false });
+    expect((await admin.get("/uebersicht")).daten.nicht_am_stammplatz).toBe(3);
+    expect((await admin.get("/stuecke?merkmal=fremd")).daten.eintraege).toHaveLength(3);
+
+    const r = await admin.post("/buchungen/zurueckraeumen", { stueck_ids: [ids["A-1"], ids["A-2"], ids["A-3"], leiter.id, neu.id] });
+    expect(r.status).toBe(200);
+    expect(r.daten).toMatchObject({ gebucht: 3, schon_dort: 1, ohne_stammplatz: [{ name: "Ohne Platz" }] });
+    expect((await admin.get(`/stuecke/${leiter.id}`)).daten.stueck.platz.id).toBe(r2.id);
+    expect((await admin.get(`/stuecke/${ids["A-2"]}`)).daten.stueck.platz.id).toBe(r1.id);
+    expect((await admin.get("/uebersicht")).daten.nicht_am_stammplatz).toBe(0);
+    expect((await admin.get("/protokoll")).daten.eintraege[0]).toMatchObject({ aktion: "zurueckgeraeumt" });
+
+    // Rückgängig bringt alles wieder durcheinander, Stammplatz bleibt
+    await admin.post("/buchungen/rueckgaengig", { vorgang_id: r.daten.vorgang_id });
+    expect((await admin.get(`/stuecke/${leiter.id}`)).daten.stueck).toMatchObject({ platz: { id: r1.id }, stammplatz: { id: r2.id } });
+  });
+
+  it("Stammplatz in einem Behälter: zurück in die Kiste, egal wo sie gerade steht", async () => {
+    const { admin, r1, r2 } = await aufbau();
+    const kiste = (await admin.post("/stuecke", { name: "Kiste", behaelter: true, platz_id: r1.id })).daten;
+    const zange = (await admin.post("/stuecke", { code: "Z-1", name: "Zange", in_behaelter_id: kiste.id })).daten;
+    expect(zange).toMatchObject({ stamm_behaelter: { id: kiste.id }, am_stammplatz: true });
+    await admin.post("/buchungen", { nach_platz_id: r1.id, stueck_ids: [zange.id] });
+    await admin.post("/buchungen", { nach_platz_id: r2.id, stueck_ids: [kiste.id] });
+    const r = await admin.post("/buchungen/zurueckraeumen", { stueck_ids: [zange.id] });
+    expect(r.daten.gebucht).toBe(1);
+    expect((await admin.get(`/stuecke/${zange.id}`)).daten.stueck).toMatchObject({ in_behaelter: { id: kiste.id }, platz: { id: r2.id }, am_stammplatz: true });
+  });
+
+  it("Stammplatz neu festlegen: beim Einlagern, aktueller Ort, entfernen; Rechte", async () => {
+    const { admin, r1, r2, ids } = await aufbau();
+    const leser = await benutzerMit(admin, "lea", "leser");
+    const ma = await benutzerMit(admin, "mia", "mitarbeiter");
+    // Einlagern mit „neuer Stammplatz“ – auch für Stücke, die schon dort liegen
+    await ma.post("/buchungen", { nach_platz_id: r2.id, stueck_ids: [ids["A-1"]], stammplatz: true });
+    await ma.post("/buchungen", { nach_platz_id: r1.id, stueck_ids: [ids["A-2"]], stammplatz: true });
+    expect((await admin.get(`/stuecke/${ids["A-1"]}`)).daten.stueck).toMatchObject({ stammplatz: { id: r2.id }, am_stammplatz: true });
+    // ohne Haken bleibt der Stammplatz
+    await ma.post("/buchungen", { nach_platz_id: r1.id, stueck_ids: [ids["A-1"]] });
+    expect((await admin.get(`/stuecke/${ids["A-1"]}`)).daten.stueck.stammplatz.id).toBe(r2.id);
+
+    expect((await leser.post("/stuecke/stammplatz", { stueck_ids: [ids["A-1"]], aktuell: true })).status).toBe(403);
+    const akt = await ma.post("/stuecke/stammplatz", { stueck_ids: [ids["A-1"]], aktuell: true });
+    expect(akt.daten[0]).toMatchObject({ stammplatz: { id: r1.id }, am_stammplatz: true });
+    const weg = await ma.post("/stuecke/stammplatz", { stueck_ids: [ids["A-1"]] });
+    expect(weg.daten[0]).toMatchObject({ stammplatz: null, am_stammplatz: null });
+    expect((await ma.post("/stuecke/stammplatz", { stueck_ids: [ids["A-1"]], platz_id: r1.id, aktuell: true })).status).toBe(400);
+  });
+
+  it("vorhandene Stücke bekommen beim Update ihren ersten Lagerplatz als Stammplatz", async () => {
+    const { admin, r1, r2, ids } = await aufbau();
+    await admin.post("/buchungen", { nach_platz_id: r2.id, stueck_ids: [ids["A-1"]] });
+    // Zustand vor dem Update nachstellen und die Migration erneut ausführen
+    await env.DB.prepare("UPDATE stuecke SET stamm_platz_id = NULL, stamm_behaelter_id = NULL").run();
+    const { MIGRATIONEN } = await import("../src/worker/db/migrationen");
+    for (const sql of MIGRATIONEN.find((m) => m.version === 4)!.sql.filter((q) => q.trim().startsWith("UPDATE"))) {
+      await env.DB.prepare(sql).run();
+    }
+    expect((await admin.get(`/stuecke/${ids["A-1"]}`)).daten.stueck).toMatchObject({ stammplatz: { id: r1.id }, am_stammplatz: false });
+  });
+});
