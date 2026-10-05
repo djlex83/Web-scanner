@@ -3,47 +3,55 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import type { Platz } from "../../gemeinsam/typen";
 import { QrCode } from "../komponenten/QrCode";
+import { EIGEN_GRENZEN, EIGEN_ID, EIGEN_START, VORLAGEN, gestaltung, position, vorlageFinden, type Vorlage } from "../lib/etiketten";
 import { useGespeichert, useLaden } from "../lib/hooks";
-import { Segmente } from "../ui/formular";
+import { Auswahl, Eingabe, Feld } from "../ui/formular";
+import { kl } from "../ui/kl";
 import { Knopf, SymbolKnopf } from "../ui/knopf";
 import { FehlerHinweis, Laden } from "../ui/zustand";
 
-// Maße gängiger A4-Etikettenbögen (in mm)
-const FORMATE = {
-  klein: { spalten: 3, zeilen: 7, breite: 63.5, hoehe: 38.1, oben: 15.15, links: 7.2, abstand: 2.5, name: "21 pro Bogen (63,5 × 38,1 mm)" },
-  gross: { spalten: 2, zeilen: 4, breite: 99.1, hoehe: 67.7, oben: 13.1, links: 4.65, abstand: 2.5, name: "8 pro Bogen (99,1 × 67,7 mm)" },
-} as const;
-type Format = keyof typeof FORMATE;
+const PX_JE_MM = 96 / 25.4;
+const GRUPPEN = ["Etikettenbogen", "Normales Papier"] as const;
 
-/** Schriftgröße so wählen, dass auch lange Namen auf das Etikett passen. */
-function schrift(name: string, format: Format): number {
-  // Zeichen, die bei voller Schriftgröße in eine Zeile passen
-  const [max, min, zeichen] = format === "gross" ? [26, 12, 7] : [15, 8, 6];
-  const laengstesWort = Math.max(...name.split(/\s+/).map((w) => w.length));
-  return Math.max(min, Math.min(max, (max * zeichen) / Math.max(laengstesWort, zeichen)));
-}
-
-// A4 in CSS-Pixeln (96 dpi)
-const A4_BREITE_PX = (210 / 25.4) * 96;
-const A4_HOEHE_PX = (297 / 25.4) * 96;
-
-/** Verkleinerung der Bogen-Vorschau, damit A4 auch aufs Handy passt (nie größer als 100 %). */
-function useVorschauMassstab(): number {
-  const [m, setM] = useState(1);
+/** Verkleinerung der Blatt-Vorschau, damit das Papier auch aufs Handy passt; kleine Etiketten werden vergrößert. */
+function useVorschauMassstab(papierBreiteMm: number): number {
+  const breitePx = papierBreiteMm * PX_JE_MM;
+  const groesster = breitePx < 400 ? 2 : 1;
+  const berechnen = () => Math.min(groesster, (document.documentElement.clientWidth - 32) / breitePx);
+  const [m, setM] = useState(berechnen);
   useEffect(() => {
-    const anpassen = () => setM(Math.min(1, (document.documentElement.clientWidth - 32) / A4_BREITE_PX));
+    const anpassen = () => setM(berechnen());
     anpassen();
     window.addEventListener("resize", anpassen);
     return () => window.removeEventListener("resize", anpassen);
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [breitePx]);
   return m;
+}
+
+function mm(text: string): number {
+  return parseFloat(text.replace(",", "."));
+}
+
+function tipp(v: Vorlage): string {
+  if (v.gruppe === "Etikettenbogen")
+    return "Tipp: Im Druckdialog „Tatsächliche Größe“ bzw. Skalierung 100 % wählen und Ränder auf „Keine“ stellen.";
+  if (v.gruppe === "Etikettendrucker")
+    return `Tipp: Im Druckdialog den Etikettendrucker und die Etikettengröße ${v.papier.name} wählen, Skalierung 100 %.`;
+  return `Tipp: Im Druckdialog Papier ${v.papier.name} und Skalierung 100 % wählen.${v.schnitt ? " Danach entlang der gestrichelten Linien schneiden." : ""}`;
 }
 
 /** Druckansicht für Platz-Etiketten. */
 export default function Etiketten() {
   const [param] = useSearchParams();
   const navigate = useNavigate();
-  const [format, setFormat] = useGespeichert<Format>("ws-etikett-format", "klein");
+  // „ws-etikett-format“ war der Schlüssel der ersten Version (klein/groß)
+  const [alt] = useGespeichert<string>("ws-etikett-format", "a4-21");
+  const [vorlageId, setVorlageId] = useGespeichert<string>("ws-etikett-vorlage", alt);
+  const [eigen, setEigen] = useGespeichert("ws-etikett-eigen", {
+    breite: String(EIGEN_START.breite),
+    hoehe: String(EIGEN_START.hoehe),
+  });
   const { daten, fehler } = useLaden<Platz[]>("/plaetze?alle=1");
   const ids = (param.get("ids") ?? "").split(",").map(Number).filter(Boolean);
 
@@ -53,16 +61,24 @@ export default function Etiketten() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [daten, param]);
 
-  const massstab = useVorschauMassstab();
-  const f = FORMATE[format];
-  const proBogen = f.spalten * f.zeilen;
-  const boegen: Platz[][] = [];
-  for (let i = 0; i < plaetze.length; i += proBogen) boegen.push(plaetze.slice(i, i + proBogen));
+  const v = vorlageFinden(vorlageId, { breite: mm(eigen.breite), hoehe: mm(eigen.hoehe) });
+  const massstab = useVorschauMassstab(v.papier.breite);
+  const proSeite = v.spalten * v.zeilen;
+  const seiten: Platz[][] = [];
+  for (let i = 0; i < plaetze.length; i += proSeite) seiten.push(plaetze.slice(i, i + proSeite));
+  const eigenFehler = (t: string) => {
+    const n = mm(t);
+    return Number.isFinite(n) && n >= EIGEN_GRENZEN.min && n <= EIGEN_GRENZEN.max
+      ? undefined
+      : `${EIGEN_GRENZEN.min}–${EIGEN_GRENZEN.max} mm`;
+  };
 
   return (
     <div className="min-h-dvh bg-flaeche-2 print:bg-white">
+      {/* Papiergröße für den Druckdialog */}
+      <style>{`@page { size: ${v.papier.breite}mm ${v.papier.hoehe}mm; margin: 0; }`}</style>
       <div className="nicht-drucken sticky top-0 z-10 border-b border-rand bg-flaeche/90 backdrop-blur-xl">
-        <div className="mx-auto max-w-4xl space-y-2 px-4 py-3">
+        <div className="mx-auto max-w-4xl space-y-3 px-4 py-3">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <div className="flex min-w-0 flex-1 items-center gap-1">
               <SymbolKnopf beschriftung="Zurück" onClick={() => navigate(-1)} className="-ml-2">
@@ -71,30 +87,51 @@ export default function Etiketten() {
               <div className="min-w-0">
                 <h1 className="text-lg font-bold leading-tight">Etiketten drucken</h1>
                 <p className="text-[13px] text-gedaempft">
-                  {plaetze.length} {plaetze.length === 1 ? "Etikett" : "Etiketten"} · {boegen.length}{" "}
-                  {boegen.length === 1 ? "Bogen" : "Bögen"} · {f.name}
+                  {plaetze.length} {plaetze.length === 1 ? "Etikett" : "Etiketten"} · {seiten.length}{" "}
+                  {seiten.length === 1 ? "Seite" : "Seiten"} {v.papier.name}
                 </p>
               </div>
             </div>
             <div className="flex gap-2">
-              <Segmente
-                beschriftung="Etikettenformat"
-                wert={format}
-                aendern={setFormat}
-                optionen={[
-                  { wert: "klein", text: "Klein" },
-                  { wert: "gross", text: "Groß" },
-                ]}
-                className="flex-1 sm:w-56 sm:flex-none"
-              />
+              <Auswahl
+                aria-label="Papier und Etikettenformat"
+                value={v.id}
+                onChange={(e) => setVorlageId(e.target.value)}
+                className="min-w-0 flex-1 sm:w-80 sm:flex-none"
+              >
+                {GRUPPEN.map((g) => (
+                  <optgroup key={g} label={g}>
+                    {VORLAGEN.filter((x) => x.gruppe === g).map((x) => (
+                      <option key={x.id} value={x.id}>
+                        {x.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
+                <optgroup label="Etikettendrucker">
+                  <option value={EIGEN_ID}>Etikettendrucker · eigene Größe</option>
+                </optgroup>
+              </Auswahl>
               <Knopf art="primaer" symbol={<Printer className="size-5" />} onClick={() => window.print()} disabled={!plaetze.length}>
                 Drucken
               </Knopf>
             </div>
           </div>
-          <p className="text-[13px] text-gedaempft">
-            Tipp: Im Druckdialog „Tatsächliche Größe“ bzw. Skalierung 100 % wählen und Ränder auf „Keine“ stellen.
-          </p>
+          {v.id === EIGEN_ID && (
+            <div className="grid grid-cols-2 gap-3 sm:ml-auto sm:max-w-80">
+              <Feld beschriftung="Breite (mm)" fehler={eigenFehler(eigen.breite)}>
+                {(p) => (
+                  <Eingabe {...p} inputMode="decimal" value={eigen.breite} onChange={(e) => setEigen({ ...eigen, breite: e.target.value })} />
+                )}
+              </Feld>
+              <Feld beschriftung="Höhe (mm)" fehler={eigenFehler(eigen.hoehe)}>
+                {(p) => (
+                  <Eingabe {...p} inputMode="decimal" value={eigen.hoehe} onChange={(e) => setEigen({ ...eigen, hoehe: e.target.value })} />
+                )}
+              </Feld>
+            </div>
+          )}
+          <p className="text-[13px] text-gedaempft">{tipp(v)}</p>
         </div>
       </div>
 
@@ -106,50 +143,68 @@ export default function Etiketten() {
       {!daten && !fehler && <Laden />}
 
       <div className="flex flex-col items-center gap-6 px-4 py-6 print:block print:p-0">
-        {boegen.map((bogen, i) => (
-          // Vorschau auf den Bildschirm verkleinert; gedruckt wird in Originalgröße
+        {seiten.map((seite, i) => (
+          // Vorschau auf den Bildschirm angepasst; gedruckt wird in Originalgröße
           <div
             key={i}
             className="shrink-0 print:h-auto! print:w-auto!"
-            style={{ width: A4_BREITE_PX * massstab, height: A4_HOEHE_PX * massstab }}
+            style={{ width: v.papier.breite * PX_JE_MM * massstab, height: v.papier.hoehe * PX_JE_MM * massstab }}
           >
-          <div
-            className="relative origin-top-left bg-white text-black shadow-hoch print:transform-none! print:shadow-none"
-            style={{ width: "210mm", height: "297mm", breakAfter: "page", overflow: "hidden", transform: `scale(${massstab})` }}
-          >
-            {bogen.map((p, j) => {
-              const spalte = j % f.spalten;
-              const zeile = Math.floor(j / f.spalten);
-              const eltern = p.pfad.includes(" › ") ? p.pfad.slice(0, p.pfad.lastIndexOf(" › ")) : "";
-              const qr = Math.min(f.hoehe - 8, f.breite * 0.45);
-              return (
-                <div
-                  key={p.id}
-                  className="absolute flex items-center gap-[3mm] overflow-hidden"
-                  style={{
-                    left: `${f.links + spalte * (f.breite + f.abstand)}mm`,
-                    top: `${f.oben + zeile * f.hoehe}mm`,
-                    width: `${f.breite}mm`,
-                    height: `${f.hoehe}mm`,
-                    padding: "4mm",
-                  }}
-                >
-                  <div className="shrink-0" style={{ width: `${qr}mm`, height: `${qr}mm` }}>
-                    <QrCode wert={p.code} className="size-full [&_svg]:size-full" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    {eltern && <div className="truncate text-[9pt] font-medium text-neutral-500">{eltern}</div>}
-                    <div lang="de" className="font-bold leading-tight [overflow-wrap:break-word]" style={{ fontSize: `${schrift(p.name, format)}pt` }}>
-                      {p.name}
-                    </div>
-                    <div className="mt-[1mm] truncate font-mono text-[7pt] text-neutral-500">{p.code}</div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+            <div
+              className="relative origin-top-left overflow-hidden bg-white text-black shadow-hoch print:transform-none! print:shadow-none"
+              style={{
+                width: `${v.papier.breite}mm`,
+                height: `${v.papier.hoehe}mm`,
+                // kein Seitenumbruch nach der letzten Seite – am Etikettendrucker kostet das ein leeres Etikett
+                breakAfter: i < seiten.length - 1 ? "page" : "auto",
+                transform: `scale(${massstab})`,
+              }}
+            >
+              {seite.map((p, j) => (
+                <Etikett key={p.id} platz={p} vorlage={v} nummer={j} />
+              ))}
+            </div>
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+
+function Etikett({ platz: p, vorlage: v, nummer }: { platz: Platz; vorlage: Vorlage; nummer: number }) {
+  const pos = position(v, nummer);
+  const g = gestaltung(v, p.name);
+  const eltern = p.pfad.includes(" › ") ? p.pfad.slice(0, p.pfad.lastIndexOf(" › ")) : "";
+  return (
+    <div
+      className={kl(
+        "absolute flex overflow-hidden",
+        g.hochkant ? "flex-col items-center justify-center gap-[3mm] text-center" : "items-center gap-[3mm]",
+        v.schnitt && "outline-dashed outline-[0.2mm] -outline-offset-[0.1mm] outline-neutral-400",
+      )}
+      style={{
+        left: `${pos.links}mm`,
+        top: `${pos.oben}mm`,
+        width: `${v.etikett.breite}mm`,
+        height: `${v.etikett.hoehe}mm`,
+        padding: `${g.rand}mm`,
+      }}
+    >
+      <div className="shrink-0" style={{ width: `${g.qr}mm`, height: `${g.qr}mm` }}>
+        <QrCode wert={p.code} className="size-full [&_svg]:size-full" />
+      </div>
+      <div className={kl("min-w-0", g.hochkant ? "w-full" : "flex-1")}>
+        {eltern && (
+          <div className="truncate font-medium text-neutral-500" style={{ fontSize: `${g.eltern}pt` }}>
+            {eltern}
+          </div>
+        )}
+        <div lang="de" className="font-bold leading-tight [overflow-wrap:break-word]" style={{ fontSize: `${g.name}pt` }}>
+          {p.name}
+        </div>
+        <div className="mt-[1mm] truncate font-mono text-neutral-500" style={{ fontSize: `${g.code}pt` }}>
+          {p.code}
+        </div>
       </div>
     </div>
   );
