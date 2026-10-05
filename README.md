@@ -18,6 +18,7 @@ Web-App für Handy, Tablet und PC. Läuft im **kostenlosen Tarif von Cloudflare*
   - [4. Scannen: „Wo ist …?“ und „Einlagern“](#4-scannen-wo-ist--und-einlagern)
   - [5. Bestand und Protokoll](#5-bestand-und-protokoll)
   - [6. Benutzer verwalten](#6-benutzer-verwalten)
+- [Passwort ändern oder vergessen](#passwort-ändern-oder-vergessen)
 - [Rollen](#rollen)
 - [Am PC](#am-pc)
 - [Hell und dunkel](#hell-und-dunkel)
@@ -89,6 +90,40 @@ Admins legen unter **Benutzer** neue Konten an und vergeben die Rolle. Die App e
 
 ---
 
+## Passwort ändern oder vergessen
+
+| Situation | So geht’s |
+|---|---|
+| **Eigenes Passwort ändern** | *Mein Konto → Passwort ändern*: bisheriges und neues Passwort (mind. 8 Zeichen). Alle anderen Geräte werden dabei abgemeldet. |
+| **Neues Konto** | Der Admin legt es mit einem Startpasswort an. Beim ersten Anmelden muss die Person ein eigenes Passwort wählen. |
+| **Passwort vergessen** | Ein Admin öffnet *Benutzer → Person → Passwort zurücksetzen*. Die App zeigt ein neues Startpasswort, das beim nächsten Anmelden geändert werden muss. Eine Sperre wird dabei aufgehoben. |
+| **5 × falsches Passwort** | Das Konto ist 15 Minuten gesperrt – danach geht es wieder, oder ein Admin setzt das Passwort sofort zurück. |
+| **Admin hat sein Passwort vergessen** | Am besten gibt es einen zweiten Admin. Sonst hilft der **Notfall-Code** (unten). |
+
+### Notfall-Code für den Admin-Zugang
+
+Falls kein Admin mehr hineinkommt, kann man auf der Anmeldeseite über **„Admin-Zugang wiederherstellen“** mit einem geheimen Notfall-Code ein neues Admin-Passwort setzen. Es braucht dafür keinen E-Mail-Dienst.
+
+![Notfall-Code und Protokoll](docs/bilder/notfall.png)
+
+**Einmalig einrichten:**
+
+1. Einen langen Zufallscode ausdenken bzw. erzeugen (mindestens 16 Zeichen, z. B. vom Passwort-Manager) und **sicher aufbewahren** (Passwort-Manager, ausgedruckt im Tresor).
+2. Im Cloudflare-Dashboard: **Workers & Pages → web-scanner → Einstellungen → Variablen und Geheimnisse → Hinzufügen**
+   - Typ: **Geheimnis (Secret)**
+   - Name: `NOTFALL_CODE`
+   - Wert: der Code
+   - Speichern und bereitstellen.
+
+   Alternativ im Terminal: `npx wrangler secret put NOTFALL_CODE`
+3. Ab jetzt erscheint auf der Anmeldeseite der Link **„Admin-Zugang wiederherstellen“**. Ohne hinterlegten Code bleibt die Funktion abgeschaltet und unsichtbar.
+
+**Im Notfall:** Link antippen → Notfall-Code, Benutzername des Admins und neues Passwort eingeben → man ist sofort angemeldet. Alle alten Sitzungen dieses Admins werden beendet.
+
+**Schutz:** höchstens 5 Versuche je Gerät in 15 Minuten und 10 Versuche insgesamt pro Stunde; jeder Versuch – auch ein falscher – steht im Protokoll. Funktioniert nur für Konten mit der Rolle Admin. Den Code nach einer Nutzung am besten neu setzen.
+
+---
+
 ## Rollen
 
 | Rolle | Darf |
@@ -131,7 +166,8 @@ Unter **Mein Konto** wählbar: automatisch (nach Geräteeinstellung), hell oder 
 4. **Bereitstellen.** Die Datenbank (D1, Name `web-scanner`) legt `wrangler deploy` beim ersten Mal selbst an, die Tabellen legt die App beim ersten Aufruf an.
    Falls die Bereitstellung wegen der Datenbank abbricht: unter **Storage & Databases → D1** eine Datenbank `web-scanner` anlegen und deren ID in `wrangler.jsonc` als `"database_id"` eintragen.
 5. Die angezeigte Adresse (`https://web-scanner.<name>.workers.dev`) **sofort** öffnen und das **erste Admin-Konto** anlegen – solange es keinen Benutzer gibt, kann das jeder mit der Adresse.
-6. Unter **Plätze** Abteilungen und Regale anlegen, Etiketten drucken, aufkleben – los geht’s.
+6. Empfohlen: den [Notfall-Code](#notfall-code-für-den-admin-zugang) hinterlegen.
+7. Unter **Plätze** Abteilungen und Regale anlegen, Etiketten drucken, aufkleben – los geht’s.
 
 Danach wird jeder Push auf `main` automatisch veröffentlicht.
 
@@ -149,6 +185,8 @@ npm run dev        # http://localhost:5173 – App + Server + lokale Datenbank
 npm test           # API-Tests im echten Workers-Laufzeitsystem
 npm run build      # Typprüfung + Bauen
 ```
+
+Für den Notfall-Code lokal: `.dev.vars.example` nach `.dev.vars` kopieren (wird nicht eingecheckt).
 
 Die Kamera braucht HTTPS – auf `localhost` geht es auch ohne. Am Handy am einfachsten direkt die veröffentlichte Version nutzen.
 

@@ -1,4 +1,4 @@
-import { Download, FileClock, History, KeyRound, PackagePlus, Pencil, Repeat2, ShieldAlert, UserPlus, Warehouse } from "lucide-react";
+import { Download, FileClock, History, KeyRound, LifeBuoy, PackagePlus, Pencil, Repeat2, ShieldAlert, UserPlus, Warehouse } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import type { Buchung, ProtokollEintrag, Seite } from "../../gemeinsam/typen";
 import { BewegungsZeile } from "../komponenten/BewegungsZeile";
@@ -35,6 +35,8 @@ const AKTION_SYMBOL: Record<string, ReactNode> = {
   passwort_geaendert: <KeyRound />,
   anmeldung_fehlgeschlagen: <ShieldAlert />,
   konto_gesperrt: <ShieldAlert />,
+  notfall_zugang: <LifeBuoy />,
+  notfall_fehlgeschlagen: <ShieldAlert />,
 };
 
 export default function Protokoll() {
@@ -162,7 +164,7 @@ export default function Protokoll() {
 }
 
 function AktionsZeile({ e }: { e: ProtokollEintrag }) {
-  const warnung = e.aktion === "anmeldung_fehlgeschlagen" || e.aktion === "konto_gesperrt";
+  const warnung = ["anmeldung_fehlgeschlagen", "konto_gesperrt", "notfall_fehlgeschlagen", "notfall_zugang"].includes(e.aktion);
   return (
     <div className="flex items-start gap-3 px-4 py-3" title={zeitpunkt(e.zeitpunkt)}>
       <div

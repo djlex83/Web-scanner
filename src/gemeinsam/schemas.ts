@@ -40,6 +40,12 @@ export const passwortAendernSchema = z.object({
   neu: passwortSchema,
 });
 
+export const notfallSchema = z.object({
+  code: z.string().trim().min(1, "Pflichtfeld").max(200),
+  benutzername: z.string().trim().min(1, "Pflichtfeld").max(50),
+  neues_passwort: passwortSchema,
+});
+
 export const benutzerAnlegenSchema = z.object({
   benutzername: benutzernameSchema,
   name: text(100),

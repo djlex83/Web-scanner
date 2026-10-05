@@ -7,6 +7,7 @@ import { schemaSicherstellen } from "./db/migrationen";
 import type { AppEnv } from "./kontext";
 import { authRouten } from "./routen/auth";
 import { benutzerRouten } from "./routen/benutzer";
+import { notfallRouten } from "./routen/notfall";
 import { buchungenRouten } from "./routen/buchungen";
 import { plaetzeRouten } from "./routen/plaetze";
 import { protokollRouten } from "./routen/protokoll";
@@ -25,6 +26,7 @@ app.use(async (c, next) => {
 });
 app.use(sitzungLesen);
 
+app.route("/auth/notfall", notfallRouten);
 app.route("/auth", authRouten);
 app.route("/benutzer", benutzerRouten);
 app.route("/plaetze", plaetzeRouten);

@@ -1,0 +1,2 @@
+# Lokale Geheimnisse für "npm run dev" – als .dev.vars kopieren (wird nicht eingecheckt)
+NOTFALL_CODE="hier-einen-langen-zufallscode-eintragen"

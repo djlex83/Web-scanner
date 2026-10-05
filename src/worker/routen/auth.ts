@@ -1,13 +1,12 @@
 import { Hono } from "hono";
 import { anmeldenSchema, einrichtenSchema, passwortAendernSchema } from "../../gemeinsam/schemas";
 import { ATTRAPPEN_HASH, passwortHashen, passwortPruefen, runden } from "../auth/passwort";
+import { clientIp, drosseln } from "../auth/drossel";
 import { alleSitzungenBeenden, sitzungBeenden, sitzungStarten } from "../auth/sitzung";
-import { benutzerVon, eingabe, fehler, jetzt, protokollEintrag, type AppEnv, type Ctx } from "../kontext";
+import { benutzerVon, eingabe, fehler, jetzt, protokollEintrag, type AppEnv } from "../kontext";
 
 const MAX_FEHLVERSUCHE = 5;
 const SPERRE_MIN = 15;
-const IP_FENSTER_MIN = 15;
-const IP_MAX = 30;
 
 export const authRouten = new Hono<AppEnv>();
 
@@ -40,21 +39,6 @@ authRouten.post("/einrichten", async (c) => {
   return c.json({ ok: true });
 });
 
-async function ipDrosseln(c: Ctx): Promise<void> {
-  const ip = c.req.header("cf-connecting-ip") ?? "lokal";
-  const grenze = new Date(Date.now() - IP_FENSTER_MIN * 60_000).toISOString();
-  const z = await c.env.DB.prepare(
-    `INSERT INTO anmelde_drossel (schluessel, anzahl, fenster_start) VALUES (?, 1, ?)
-     ON CONFLICT(schluessel) DO UPDATE SET
-       anzahl = CASE WHEN fenster_start < ? THEN 1 ELSE anzahl + 1 END,
-       fenster_start = CASE WHEN fenster_start < ? THEN excluded.fenster_start ELSE fenster_start END
-     RETURNING anzahl`,
-  )
-    .bind("ip:" + ip, jetzt(), grenze, grenze)
-    .first<{ anzahl: number }>();
-  if ((z?.anzahl ?? 0) > IP_MAX) fehler(429, "Zu viele Anmeldeversuche. Bitte später erneut versuchen.");
-}
-
 interface AnmeldeZeile {
   id: number;
   name: string;
@@ -66,7 +50,7 @@ interface AnmeldeZeile {
 
 authRouten.post("/anmelden", async (c) => {
   const e = await eingabe(c, anmeldenSchema);
-  await ipDrosseln(c);
+  await drosseln(c, "ip:" + clientIp(c), 30, 15, "Zu viele Anmeldeversuche. Bitte später erneut versuchen.");
   const b = await c.env.DB.prepare(
     "SELECT id, name, passwort_hash, aktiv, fehlversuche, gesperrt_bis FROM benutzer WHERE benutzername = ?",
   )

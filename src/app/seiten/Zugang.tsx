@@ -1,6 +1,6 @@
-import { Eye, EyeOff, KeyRound, ShieldCheck } from "lucide-react";
-import { useState, type FormEvent, type ReactNode } from "react";
-import { fehlerText, senden } from "../lib/api";
+import { Eye, EyeOff, KeyRound, LifeBuoy, ShieldCheck } from "lucide-react";
+import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { fehlerText, holen, senden } from "../lib/api";
 import { useSitzung } from "../lib/sitzung";
 import { Logo } from "../Rahmen";
 import { Eingabe, Feld } from "../ui/formular";
@@ -9,7 +9,7 @@ import { FehlerHinweis } from "../ui/zustand";
 
 function Huelle({ titel, text, children }: { titel: string; text: string; children: ReactNode }) {
   return (
-    <div className="relative flex min-h-dvh items-center justify-center overflow-hidden px-4 py-10">
+    <div className="relative flex min-h-dvh items-center justify-center overflow-clip px-4 py-10">
       <div aria-hidden className="pointer-events-none absolute -top-40 left-1/2 h-[520px] w-[820px] -translate-x-1/2 rounded-full bg-[radial-gradient(closest-side,var(--primaer-weich),transparent)] opacity-90" />
       <div className="anim-ein relative w-full max-w-sm">
         <div className="mb-8 flex justify-center">
@@ -31,12 +31,14 @@ function PasswortFeld({
   setzen,
   neu,
   hinweis,
+  autoComplete,
 }: {
   beschriftung: string;
   wert: string;
   setzen: (s: string) => void;
   neu?: boolean;
   hinweis?: string;
+  autoComplete?: string;
 }) {
   const [sichtbar, setSichtbar] = useState(false);
   return (
@@ -48,7 +50,7 @@ function PasswortFeld({
             type={sichtbar ? "text" : "password"}
             value={wert}
             onChange={(e) => setzen(e.target.value)}
-            autoComplete={neu ? "new-password" : "current-password"}
+            autoComplete={autoComplete ?? (neu ? "new-password" : "current-password")}
             className="pr-14"
             required
           />
@@ -89,10 +91,19 @@ export function Anmelden() {
   const [benutzername, setBenutzername] = useState("");
   const [passwort, setPasswort] = useState("");
   const [bleiben, setBleiben] = useState(true);
+  const [notfallMoeglich, setNotfallMoeglich] = useState(false);
+  const [notfall, setNotfall] = useState(false);
+  useEffect(() => {
+    holen<{ verfuegbar: boolean }>("/auth/notfall")
+      .then((r) => setNotfallMoeglich(r.verfuegbar))
+      .catch(() => {});
+  }, []);
   const f = useAbsenden(async () => {
     await senden("/auth/anmelden", { benutzername, passwort, angemeldet_bleiben: bleiben });
     await neuLaden();
   });
+
+  if (notfall) return <NotfallZugang zurueck={() => setNotfall(false)} />;
 
   return (
     <Huelle titel="Anmelden" text="Mit deinem persönlichen Konto.">
@@ -120,6 +131,60 @@ export function Anmelden() {
           Anmelden
         </Knopf>
         <p className="text-center text-[13px] text-gedaempft">Passwort vergessen? Ein Admin kann es zurücksetzen.</p>
+        {notfallMoeglich && (
+          <button
+            type="button"
+            onClick={() => setNotfall(true)}
+            className="mx-auto flex min-h-11 items-center gap-2 rounded-lg px-3 text-[13px] font-semibold text-primaer-text hover:bg-primaer-weich"
+          >
+            <LifeBuoy className="size-4" /> Admin-Zugang wiederherstellen
+          </button>
+        )}
+      </form>
+    </Huelle>
+  );
+}
+
+/** Admin-Passwort mit dem Notfall-Code neu setzen (Code liegt als Secret in Cloudflare). */
+function NotfallZugang({ zurueck }: { zurueck: () => void }) {
+  const { neuLaden } = useSitzung();
+  const [code, setCode] = useState("");
+  const [benutzername, setBenutzername] = useState("");
+  const [neu, setNeu] = useState("");
+  const f = useAbsenden(async () => {
+    await senden("/auth/notfall", { code, benutzername, neues_passwort: neu });
+    await neuLaden();
+  });
+
+  return (
+    <Huelle
+      titel="Admin-Zugang wiederherstellen"
+      text="Mit dem Notfall-Code aus den Cloudflare-Einstellungen setzt du ein neues Passwort für ein Admin-Konto."
+    >
+      <form onSubmit={f.absenden} className="space-y-5">
+        {f.fehler && <FehlerHinweis text={f.fehler} />}
+        <PasswortFeld beschriftung="Notfall-Code" wert={code} setzen={setCode} autoComplete="off" hinweis="Steht als Secret NOTFALL_CODE beim Worker in Cloudflare" />
+        <Feld beschriftung="Benutzername des Admins">
+          {(p) => (
+            <Eingabe
+              {...p}
+              value={benutzername}
+              onChange={(e) => setBenutzername(e.target.value)}
+              autoComplete="username"
+              autoCapitalize="none"
+              autoCorrect="off"
+              required
+            />
+          )}
+        </Feld>
+        <PasswortFeld beschriftung="Neues Passwort" wert={neu} setzen={setNeu} neu hinweis="Mindestens 8 Zeichen" />
+        <Knopf type="submit" art="primaer" groesse="l" breit laedt={f.laedt} symbol={<KeyRound className="size-5" />}>
+          Neues Passwort setzen
+        </Knopf>
+        <Knopf art="leise" breit onClick={zurueck}>
+          Zurück zur Anmeldung
+        </Knopf>
+        <p className="text-center text-[13px] text-gedaempft">Jeder Versuch wird im Protokoll vermerkt.</p>
       </form>
     </Huelle>
   );

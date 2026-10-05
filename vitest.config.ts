@@ -6,6 +6,7 @@ export default defineConfig({
     cloudflareTest({
       main: "./src/worker/index.ts",
       wrangler: { configPath: "./wrangler.jsonc" },
+      miniflare: { bindings: { NOTFALL_CODE: "test-notfall-code-1234567890" } },
     }),
   ],
   test: { include: ["tests/**/*.test.ts"], setupFiles: ["./tests/setup.ts"] },

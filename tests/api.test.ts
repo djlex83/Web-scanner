@@ -164,3 +164,44 @@ describe("Scannen und Buchen", () => {
     expect(ue.daten).toMatchObject({ stuecke: 3, plaetze: 3, bewegungen_heute: 3 });
   });
 });
+
+describe("Notfall-Code", () => {
+  const CODE = "test-notfall-code-1234567890";
+
+  it("setzt das Admin-Passwort neu und meldet an", async () => {
+    await adminEinrichten();
+    const gast = new Client();
+    expect((await gast.get("/auth/notfall")).daten).toEqual({ verfuegbar: true });
+
+    const falsch = await gast.post("/auth/notfall", { code: "falsch", benutzername: "chef", neues_passwort: "neu-geheim-123" });
+    expect(falsch.status).toBe(401);
+
+    const ok = await gast.post("/auth/notfall", { code: CODE, benutzername: "chef", neues_passwort: "neu-geheim-123" });
+    expect(ok.status).toBe(200);
+    expect((await gast.get("/auth/ich")).daten.benutzer).toMatchObject({ rolle: "admin" });
+
+    const neu = new Client();
+    expect((await neu.post("/auth/anmelden", { benutzername: "chef", passwort: "geheim-12345" })).status).toBe(401);
+    expect((await neu.post("/auth/anmelden", { benutzername: "chef", passwort: "neu-geheim-123" })).status).toBe(200);
+
+    const prot = await neu.get("/protokoll?objekt_typ=benutzer");
+    expect(prot.daten.eintraege.some((e: any) => e.aktion === "notfall_zugang")).toBe(true);
+  });
+
+  it("nur für Admin-Konten, alte Sitzungen enden, Versuche begrenzt", async () => {
+    const admin = await adminEinrichten();
+    await benutzerMit(admin, "ma2", "mitarbeiter");
+    const gast = new Client();
+    const kein = await gast.post("/auth/notfall", { code: CODE, benutzername: "ma2", neues_passwort: "neu-geheim-123" });
+    expect(kein.status).toBe(400);
+
+    await gast.post("/auth/notfall", { code: CODE, benutzername: "chef", neues_passwort: "neu-geheim-123" });
+    expect((await admin.get("/auth/ich")).daten.benutzer).toBeNull();
+
+    let letzter = 0;
+    for (let i = 0; i < 6; i++) {
+      letzter = (await gast.post("/auth/notfall", { code: "falsch", benutzername: "chef", neues_passwort: "x-12345678" })).status;
+    }
+    expect(letzter).toBe(429);
+  });
+});
