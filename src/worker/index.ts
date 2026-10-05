@@ -5,17 +5,21 @@ import { secureHeaders } from "hono/secure-headers";
 import { sitzungLesen } from "./auth/sitzung";
 import { schemaSicherstellen } from "./db/migrationen";
 import type { AppEnv } from "./kontext";
+import { ausleihenRouten } from "./routen/ausleihen";
 import { authRouten } from "./routen/auth";
 import { benutzerRouten } from "./routen/benutzer";
 import { notfallRouten } from "./routen/notfall";
 import { buchungenRouten } from "./routen/buchungen";
 import { fotoRouten } from "./routen/fotos";
+import { inventurRouten } from "./routen/inventur";
 import { kategorienRouten } from "./routen/kategorien";
 import { plaetzeRouten } from "./routen/plaetze";
 import { protokollRouten } from "./routen/protokoll";
+import { pruefungenRouten } from "./routen/pruefungen";
 import { scanRouten } from "./routen/scan";
 import { stueckeRouten } from "./routen/stuecke";
 import { uebersichtRouten } from "./routen/uebersicht";
+import { vermisstRouten } from "./routen/vermisst";
 
 const app = new Hono<AppEnv>().basePath("/api");
 
@@ -38,6 +42,10 @@ app.route("/kategorien", kategorienRouten);
 app.route("/scan", scanRouten);
 app.route("/buchungen", buchungenRouten);
 app.route("/protokoll", protokollRouten);
+app.route("/ausleihen", ausleihenRouten);
+app.route("/vermisst", vermisstRouten);
+app.route("/pruefungen", pruefungenRouten);
+app.route("/inventur", inventurRouten);
 app.route("/uebersicht", uebersichtRouten);
 
 app.notFound((c) => c.json({ fehler: "Nicht gefunden" }, 404));

@@ -1,8 +1,10 @@
 import { Hono } from "hono";
-import { buchenSchema } from "../../gemeinsam/schemas";
+import { darf } from "../../gemeinsam/rechte";
+import { buchenSchema, rueckgaengigSchema } from "../../gemeinsam/schemas";
 import type { Buchung, BuchungsArt, Seite } from "../../gemeinsam/typen";
-import { alsJson, platzPfad, plaetzeLaden, type PlatzKarte } from "../db/abfragen";
-import { benutzerVon, braucht, eingabe, fehler, geraet, jetzt, type AppEnv } from "../kontext";
+import { platzPfad, plaetzeLaden, type PlatzKarte } from "../db/abfragen";
+import { bewegen, bewegungenZu, stueckeLaden, zielLaden, zielText, type Bewegung, type StueckOrt } from "../db/bewegen";
+import { benutzerVon, braucht, eingabe, fehler, jetzt, protokollEintrag, type AppEnv, type Ctx } from "../kontext";
 
 export const buchungenRouten = new Hono<AppEnv>();
 
@@ -15,6 +17,9 @@ interface BuchungsZeile {
   von_platz_id: number | null;
   nach_platz_id: number | null;
   notiz: string | null;
+  mitgefuehrt: number;
+  von_behaelter: string | null;
+  nach_behaelter: string | null;
   stueck_id: number;
   stueck_code: string;
   stueck_name: string;
@@ -27,6 +32,13 @@ export interface BuchungsFilter {
   bis?: string;
   vor_id?: number;
   limit?: number;
+}
+
+/** "Regal 3 › Kiste 7" – Platz und (optional) Behälter */
+function ortText(karte: PlatzKarte, platzId: number | null, behaelter: string | null): string | null {
+  const platz = platzId ? platzPfad(karte, platzId) : null;
+  if (!behaelter) return platz;
+  return platz ? `${platz} › ${behaelter}` : behaelter;
 }
 
 /** Buchungen, neueste zuerst; Blättern über vor_id. */
@@ -46,8 +58,10 @@ export async function buchungenAbfragen(
   const { results } = await db
     .prepare(
       `SELECT b.id, b.vorgang_id, b.art, b.zeitpunkt, u.name AS benutzer, b.von_platz_id, b.nach_platz_id,
-              b.notiz, s.id AS stueck_id, s.code AS stueck_code, s.name AS stueck_name
+              b.notiz, b.mitgefuehrt, vb.name AS von_behaelter, nb.name AS nach_behaelter,
+              s.id AS stueck_id, s.code AS stueck_code, s.name AS stueck_name
        FROM buchungen b JOIN benutzer u ON u.id = b.benutzer_id JOIN stuecke s ON s.id = b.stueck_id
+       LEFT JOIN stuecke vb ON vb.id = b.von_behaelter_id LEFT JOIN stuecke nb ON nb.id = b.nach_behaelter_id
        ${bed.length ? "WHERE " + bed.join(" AND ") : ""}
        ORDER BY b.id DESC LIMIT ?`,
     )
@@ -60,79 +74,163 @@ export async function buchungenAbfragen(
       art: z.art,
       zeitpunkt: z.zeitpunkt,
       benutzer: z.benutzer,
-      von: z.von_platz_id ? platzPfad(karte, z.von_platz_id) : null,
-      nach: z.nach_platz_id ? platzPfad(karte, z.nach_platz_id) : null,
+      von: ortText(karte, z.von_platz_id, z.von_behaelter),
+      nach: ortText(karte, z.nach_platz_id, z.nach_behaelter),
       notiz: z.notiz,
+      mitgefuehrt: z.mitgefuehrt === 1,
       stueck: { id: z.stueck_id, code: z.stueck_code, name: z.stueck_name },
     })),
     weitere: results.length > limit,
   };
 }
 
-/** Mehrere Stücke auf einen Platz buchen – eine Transaktion, alles oder nichts. */
-buchungenRouten.post("/", braucht("buchen"), async (c) => {
+/** Bucht Stücke um und schreibt das Protokoll – gemeinsam für Einlagern, Inventur und Rückgängig. */
+export function umbuchenStatements(
+  c: Ctx,
+  karte: PlatzKarte,
+  e: {
+    vorgang: string;
+    bewegungen: Bewegung[];
+    stuecke: StueckOrt[];
+    text: string;
+    aktion?: string;
+    notiz?: string | null;
+    objekt_id?: number | null;
+    nachher?: Record<string, unknown>;
+  },
+): D1PreparedStatement[] {
   const ich = benutzerVon(c);
-  const e = await eingabe(c, buchenSchema);
-  const karte = await plaetzeLaden(c.env.DB);
-  const ziel = karte.get(e.nach_platz_id);
-  if (!ziel || !ziel.aktiv) fehler(400, "Zielplatz nicht gefunden");
-
-  const ids = [...new Set(e.stueck_ids)];
-  const { results: stuecke } = await c.env.DB.prepare(
-    "SELECT id, code, name, platz_id, status FROM stuecke WHERE id IN (SELECT value FROM json_each(?))",
-  )
-    .bind(alsJson(ids))
-    .all<{ id: number; code: string; name: string; platz_id: number | null; status: string }>();
-  if (stuecke.length !== ids.length) fehler(400, "Mindestens ein Stück wurde nicht gefunden");
-  const ausgemustert = stuecke.find((s) => s.status === "ausgemustert");
-  if (ausgemustert) fehler(400, `„${ausgemustert.name}“ ist ausgemustert und kann nicht gebucht werden`);
-
-  const zuBuchen = stuecke.filter((s) => s.platz_id !== ziel.id);
-  const vorgang = crypto.randomUUID();
-  const zeit = jetzt();
-  const zielPfad = platzPfad(karte, ziel.id);
-  if (zuBuchen.length) {
-    const liste = alsJson(zuBuchen.map((s) => s.id));
-    const text =
-      zuBuchen.length === 1
-        ? `„${zuBuchen[0]!.name}“ (${zuBuchen[0]!.code}) → ${zielPfad}`
-        : `${zuBuchen.length} Stücke → ${zielPfad}`;
-    await c.env.DB.batch([
-      // Reihenfolge wichtig: erst Buchungen mit altem Platz schreiben, dann Stücke ändern
-      c.env.DB.prepare(
-        `INSERT INTO buchungen (vorgang_id, stueck_id, von_platz_id, nach_platz_id, art, benutzer_id, zeitpunkt, notiz)
-         SELECT ?, id, platz_id, ?, 'umbuchen', ?, ?, ? FROM stuecke WHERE id IN (SELECT value FROM json_each(?))`,
-      ).bind(vorgang, ziel.id, ich.id, zeit, e.notiz, liste),
-      c.env.DB.prepare(
-        `INSERT INTO protokoll (zeitpunkt, benutzer_id, aktion, objekt_typ, objekt_id, text, nachher_json, geraet)
-         VALUES (?, ?, 'umgebucht', 'platz', ?, ?, ?, ?)`,
-      ).bind(
-        zeit,
-        ich.id,
-        ziel.id,
-        text,
-        JSON.stringify({
-          vorgang_id: vorgang,
-          nach: zielPfad,
-          stuecke: zuBuchen.map((s) => ({
+  const nachId = new Map(e.stuecke.map((s) => [s.id, s]));
+  const bewegt = e.bewegungen.map((b) => nachId.get(b.s)!);
+  const gefunden = bewegt.filter((s) => s.vermisst_seit).length;
+  const zurueck = bewegt.filter((s) => s.verliehen).length;
+  const zusatz = [
+    gefunden && `${gefunden} vermisste${gefunden === 1 ? "s" : ""} gefunden`,
+    zurueck && `${zurueck} Ausleihe${zurueck === 1 ? "" : "n"} beendet`,
+  ].filter(Boolean);
+  return [
+    ...bewegen(c.env.DB, { vorgang: e.vorgang, benutzer_id: ich.id, zeit: jetzt(), notiz: e.notiz ?? null }, e.bewegungen),
+    protokollEintrag(c, {
+      aktion: e.aktion ?? "umgebucht",
+      objekt_typ: "platz",
+      objekt_id: e.objekt_id ?? null,
+      text: e.text + (zusatz.length ? ` (${zusatz.join(", ")})` : ""),
+      nachher: {
+        vorgang_id: e.vorgang,
+        ...e.nachher,
+        stuecke: e.bewegungen.map((b) => {
+          const s = nachId.get(b.s)!;
+          return {
             code: s.code,
             name: s.name,
             von: s.platz_id ? platzPfad(karte, s.platz_id) : null,
-          })),
-          notiz: e.notiz,
+            von_behaelter_id: s.in_behaelter_id,
+            nach: b.p ? platzPfad(karte, b.p) : null,
+            nach_behaelter_id: b.b,
+          };
         }),
-        geraet(c),
-      ),
-      c.env.DB.prepare(
-        `UPDATE stuecke SET platz_id = ?, bewegt_am = ?, bewegt_von_id = ?, geaendert_am = ?
-         WHERE id IN (SELECT value FROM json_each(?))`,
-      ).bind(ziel.id, zeit, ich.id, zeit, liste),
-    ]);
+        notiz: e.notiz ?? null,
+      },
+    }),
+  ];
+}
+
+/** Mehrere Stücke auf einen Platz oder in einen Behälter buchen – eine Transaktion, alles oder nichts. */
+buchungenRouten.post("/", braucht("buchen"), async (c) => {
+  const e = await eingabe(c, buchenSchema);
+  const karte = await plaetzeLaden(c.env.DB);
+  const ziel = await zielLaden(c.env.DB, karte, e);
+  const ids = [...new Set(e.stueck_ids)];
+  const stuecke = await stueckeLaden(c.env.DB, ids);
+  if (stuecke.length !== ids.length) fehler(400, "Mindestens ein Stück wurde nicht gefunden");
+  const { bewegungen, schonDort } = bewegungenZu(ziel, stuecke);
+
+  const vorgang = crypto.randomUUID();
+  const zielPfad = zielText(karte, ziel);
+  if (bewegungen.length) {
+    const erstes = stuecke.find((s) => s.id === bewegungen[0]!.s)!;
+    await c.env.DB.batch(
+      umbuchenStatements(c, karte, {
+        vorgang,
+        bewegungen,
+        stuecke,
+        notiz: e.notiz,
+        objekt_id: ziel.art === "platz" ? ziel.platz.id : null,
+        nachher: { nach: zielPfad },
+        text:
+          bewegungen.length === 1
+            ? `„${erstes.name}“ (${erstes.code}) → ${zielPfad}`
+            : `${bewegungen.length} Stücke → ${zielPfad}`,
+      }),
+    );
   }
   return c.json({
-    vorgang_id: zuBuchen.length ? vorgang : null,
-    gebucht: zuBuchen.length,
-    schon_dort: stuecke.length - zuBuchen.length,
+    vorgang_id: bewegungen.length ? vorgang : null,
+    gebucht: bewegungen.length,
+    schon_dort: schonDort,
     ziel: zielPfad,
   });
+});
+
+const RUECKGAENGIG_MINUTEN = 15;
+
+/** Macht einen Buchungsvorgang durch Gegenbuchungen rückgängig (nichts wird gelöscht). */
+buchungenRouten.post("/rueckgaengig", braucht("buchen"), async (c) => {
+  const ich = benutzerVon(c);
+  const { vorgang_id } = await eingabe(c, rueckgaengigSchema);
+  const { results } = await c.env.DB.prepare(
+    `SELECT b.stueck_id, b.benutzer_id, b.zeitpunkt, b.von_platz_id, b.nach_platz_id, b.von_behaelter_id, b.nach_behaelter_id,
+            vb.platz_id AS behaelter_platz_id, vb.behaelter AS ist_behaelter, vb.status AS behaelter_status
+     FROM buchungen b LEFT JOIN stuecke vb ON vb.id = b.von_behaelter_id
+     WHERE b.vorgang_id = ? AND b.mitgefuehrt = 0`,
+  )
+    .bind(vorgang_id)
+    .all<{
+      stueck_id: number;
+      benutzer_id: number;
+      zeitpunkt: string;
+      von_platz_id: number | null;
+      nach_platz_id: number | null;
+      von_behaelter_id: number | null;
+      nach_behaelter_id: number | null;
+      behaelter_platz_id: number | null;
+      ist_behaelter: number | null;
+      behaelter_status: string | null;
+    }>();
+  if (!results.length) fehler(404, "Buchung nicht gefunden");
+  if (!darf(ich.rolle, "stuecke_verwalten")) {
+    const grenze = new Date(Date.now() - RUECKGAENGIG_MINUTEN * 60_000).toISOString();
+    if (results.some((r) => r.benutzer_id !== ich.id || r.zeitpunkt < grenze)) {
+      fehler(403, `Rückgängig geht nur für eigene Buchungen der letzten ${RUECKGAENGIG_MINUTEN} Minuten`);
+    }
+  }
+  const karte = await plaetzeLaden(c.env.DB);
+  const stuecke = await stueckeLaden(c.env.DB, results.map((r) => r.stueck_id));
+  const nachId = new Map(stuecke.map((s) => [s.id, s]));
+  const bewegungen: Bewegung[] = [];
+  for (const r of results) {
+    const s = nachId.get(r.stueck_id);
+    // nur Stücke, die seitdem nicht weiterbewegt wurden
+    if (!s || s.status === "ausgemustert" || s.platz_id !== r.nach_platz_id || s.in_behaelter_id !== r.nach_behaelter_id) continue;
+    const kisteOk = r.von_behaelter_id && r.ist_behaelter === 1 && r.behaelter_status !== "ausgemustert";
+    bewegungen.push(
+      kisteOk
+        ? { s: s.id, p: r.behaelter_platz_id, b: r.von_behaelter_id }
+        : { s: s.id, p: r.von_platz_id, b: null },
+    );
+  }
+  if (!bewegungen.length) fehler(409, "Schon rückgängig gemacht oder inzwischen weiterbewegt");
+  const vorgang = crypto.randomUUID();
+  await c.env.DB.batch(
+    umbuchenStatements(c, karte, {
+      vorgang,
+      bewegungen,
+      stuecke,
+      aktion: "rueckgaengig",
+      notiz: "Rückgängig",
+      nachher: { rueckgaengig_von: vorgang_id },
+      text: `Rückgängig: ${bewegungen.length === 1 ? `„${nachId.get(bewegungen[0]!.s)!.name}“ zurückgebucht` : `${bewegungen.length} Stücke zurückgebucht`}`,
+    }),
+  );
+  return c.json({ vorgang_id: vorgang, zurueck: bewegungen.length, uebersprungen: results.length - bewegungen.length });
 });
