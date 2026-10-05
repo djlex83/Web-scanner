@@ -16,6 +16,7 @@ import { Kamera } from "../scanner/Kamera";
 import { TrefferKarte } from "../scanner/TrefferKarte";
 import { useScanListe, type Eintrag } from "../scanner/useScanListe";
 import { ZielKarte } from "../scanner/ZielKarte";
+import { ScanBild, useErfolg } from "../ui/bewegung";
 import { Abschnitt } from "../ui/karte";
 import { Segmente } from "../ui/formular";
 import { kl } from "../ui/kl";
@@ -37,6 +38,7 @@ export default function Scannen() {
   const { darf } = useSitzung();
   const melden = useMeldung();
   const buchungMelden = useBuchungMelden();
+  const feiern = useErfolg();
   const [param, setParam] = useSearchParams();
   const kannBuchen = darf("buchen");
   const gewuenscht = param.get("modus");
@@ -118,6 +120,7 @@ export default function Scannen() {
         stueck_ids: zuBuchen.map((s) => s.id),
       });
       signalFertig();
+      feiern(`${anzahl(r.gebucht, "Stück", "Stücke")} eingelagert`);
       buchungMelden(`${anzahl(r.gebucht, "Stück", "Stücke")} nach ${r.ziel} gebucht`, r.vorgang_id);
       liste.leeren((e) => e.treffer?.art === "stueck");
       setNeuErfasst(new Set());
@@ -133,6 +136,7 @@ export default function Scannen() {
     try {
       const r = await senden<{ zurueck: number }>("/ausleihen/zurueck", { stueck_ids: verliehen.map((s) => s.id) });
       signalFertig();
+      feiern("Zurückgenommen");
       melden(`${anzahl(r.zurueck, "Stück", "Stücke")} zurückgenommen`);
       liste.leeren((e) => !!stueckVon(e)?.ausleihe);
     } catch (e) {
@@ -203,7 +207,10 @@ export default function Scannen() {
         }
       >
         {liste.eintraege.length === 0 ? (
-          <p className="rounded-2xl border border-dashed border-rand px-6 py-8 text-center text-[15px] text-gedaempft">{LEER_TEXT[modus]}</p>
+          <div className="flex flex-col items-center gap-4 rounded-2xl border border-dashed border-rand px-6 py-7 text-center">
+            <ScanBild />
+            <p className="max-w-md text-[15px] text-gedaempft">{LEER_TEXT[modus]}</p>
+          </div>
         ) : (
           <div className="space-y-2.5">
             {liste.eintraege.map((e) => (
@@ -296,6 +303,7 @@ export default function Scannen() {
         fertig={(n, an) => {
           setAusgeben(null);
           signalFertig();
+          feiern(`An ${an} ausgegeben`);
           melden(`${anzahl(n, "Stück", "Stücke")} an ${an} ausgegeben`);
           liste.leeren((e) => frei.some((s) => s.code === e.code));
         }}

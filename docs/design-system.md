@@ -33,6 +33,22 @@ Gemessene Kontraste (hell / dunkel): Text auf Fläche 18,1 / 16,0 · Nebentext 6
 
 **Bewegung:** `anim-ein`, `anim-plopp`, `anim-hoch`, `anim-scan`, `anim-treffer` – kurz (≤ 0,4 s), Feder-Kurve; bei „Bewegung reduzieren“ abgeschaltet.
 
+**Motion Graphics** (`src/app/ui/bewegung.tsx`, Keyframes in `stil.css`): reines SVG/CSS, nur `transform`, `opacity` und `stroke` – keine Bibliothek, flüssig auch auf schwachen Geräten, bei „Bewegung reduzieren“ ruhig.
+
+| Baustein | Wo | Wirkung |
+|---|---|---|
+| `ScanLader` | `Laden` (Seiten laden, App startet) | Mini-Strichcode mit wanderndem grünem Laser |
+| `ErfolgsHaken` | Erfolgs-Blase, Inventur „Alles da“ | Kreis ploppt auf, Haken zeichnet sich, Ring pulsiert |
+| `useErfolg()` | nach Einlagern, Ausgeben, Zurücknehmen | kurze Blase in der Bildmitte (1,2 s), zusätzlich zur Meldung |
+| `Hochzaehler` | Kennzahlen auf der Startseite | Zahl zählt in 0,7 s hoch (ease-out) |
+| `ScanBild` | leerer Scan-Bildschirm | Sucher-Ecken, Strichcode, Laser |
+| Logo-Scan | Anmeldung (dauerhaft), Seitenleiste (einmal) | Laserlinie fährt über das Logo |
+| `anim-staffel` | jede `Liste` | Zeilen blenden gestaffelt ein (35 ms Versatz) |
+| `anim-seite` | Seitenwechsel | weiches Einblenden, nur Deckkraft (feste Leisten bleiben an ihrem Platz) |
+| `anim-ablaufen` | Meldung mit „Rückgängig“ | Balken zeigt die verbleibende Zeit |
+| `anim-glanz` | Inventur-Fortschritt bei 100 % | Lichtreflex läuft über den Balken |
+| `anim-schweben` | Symbol in leeren Listen | schwebt sanft auf und ab |
+
 ## Komponenten (`src/app/ui/`)
 
 | Komponente | Zweck |

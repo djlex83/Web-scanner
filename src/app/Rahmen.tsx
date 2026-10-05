@@ -31,11 +31,20 @@ export function Logo({ gross }: { gross?: boolean }) {
     <div className="flex items-center gap-3">
       <div
         className={kl(
-          "flex items-center justify-center rounded-2xl bg-gradient-to-br from-primaer to-[oklch(0.6_0.2_300)] text-white shadow-[0_8px_20px_-8px_var(--primaer)]",
+          "relative flex items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-br from-primaer to-[oklch(0.6_0.2_300)] text-white shadow-[0_8px_20px_-8px_var(--primaer)]",
           gross ? "size-14" : "size-10",
         )}
       >
         <ScanLine className={gross ? "size-7" : "size-5"} />
+        {/* Laser fährt über das Logo – beim großen Logo dauerhaft, sonst einmal */}
+        <span
+          aria-hidden
+          className={kl(
+            "anim-logo-scan absolute inset-x-1.5 top-1 h-0.5 rounded-full bg-white shadow-[0_0_8px_2px_oklch(1_0_0/0.7)]",
+            !gross && "[animation-iteration-count:1]",
+          )}
+          style={{ ["--logo-weg" as string]: gross ? "46px" : "30px" }}
+        />
       </div>
       <span className={kl("font-bold tracking-tight", gross ? "text-2xl" : "text-lg")}>Web Scanner</span>
     </div>
@@ -99,7 +108,8 @@ export function Rahmen() {
           vollbild ? "pt-3 lg:pt-8" : "pt-4 lg:pt-10",
         )}
       >
-        <div className="mx-auto max-w-5xl">
+        {/* Seiten blenden weich ein (nur Deckkraft, damit feste Leisten an ihrem Platz bleiben) */}
+        <div key={ort.pathname} className="anim-seite mx-auto max-w-5xl">
           <Outlet />
         </div>
       </main>

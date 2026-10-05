@@ -5,6 +5,7 @@ import type { Uebersicht } from "../../gemeinsam/typen";
 import { BewegungsZeile } from "../komponenten/BewegungsZeile";
 import { useLaden } from "../lib/hooks";
 import { useIch, useSitzung } from "../lib/sitzung";
+import { Hochzaehler } from "../ui/bewegung";
 import { Abschnitt, Kennzahl, Liste, Zeile } from "../ui/karte";
 import { kl } from "../ui/kl";
 import { FehlerHinweis, Leer, Skelett } from "../ui/zustand";
@@ -56,14 +57,14 @@ export default function Start() {
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {daten ? (
           <>
-            <Kennzahl wert={daten.stuecke.toLocaleString("de-DE")} text="Stücke im Bestand" symbol={<Boxes />} zu="/stuecke" />
-            <Kennzahl wert={daten.plaetze.toLocaleString("de-DE")} text="Plätze" symbol={<Warehouse />} zu="/plaetze" />
-            <Kennzahl wert={daten.bewegungen_heute.toLocaleString("de-DE")} text="Bewegungen heute" symbol={<Repeat2 />} ton="erfolg" zu="/protokoll" />
+            <Kennzahl wert={<Hochzaehler wert={daten.stuecke} />} text="Stücke im Bestand" symbol={<Boxes />} zu="/stuecke" />
+            <Kennzahl wert={<Hochzaehler wert={daten.plaetze} />} text="Plätze" symbol={<Warehouse />} zu="/plaetze" />
+            <Kennzahl wert={<Hochzaehler wert={daten.bewegungen_heute} />} text="Bewegungen heute" symbol={<Repeat2 />} ton="erfolg" zu="/protokoll" />
             {daten.defekt > 0 ? (
-              <Kennzahl wert={daten.defekt} text="als defekt markiert" symbol={<AlertTriangle />} ton="gefahr" zu="/stuecke?status=defekt" />
+              <Kennzahl wert={<Hochzaehler wert={daten.defekt} />} text="als defekt markiert" symbol={<AlertTriangle />} ton="gefahr" zu="/stuecke?status=defekt" />
             ) : (
               <Kennzahl
-                wert={daten.ohne_platz}
+                wert={<Hochzaehler wert={daten.ohne_platz} />}
                 text="ohne Platz"
                 symbol={<MapPinOff />}
                 ton={daten.ohne_platz ? "warnung" : "neutral"}

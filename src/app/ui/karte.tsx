@@ -34,7 +34,7 @@ export function Abschnitt({
 /** Liste in einer Karte mit Trennlinien. */
 export function Liste({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <Karte className={kl("divide-y divide-rand overflow-hidden", className)}>
+    <Karte className={kl("anim-staffel divide-y divide-rand overflow-hidden", className)}>
       {children}
     </Karte>
   );

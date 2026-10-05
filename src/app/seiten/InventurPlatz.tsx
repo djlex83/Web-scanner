@@ -1,4 +1,5 @@
 import { CheckCircle2, ChevronDown, ClipboardCheck, PackagePlus, SearchX, X } from "lucide-react";
+import { ErfolgsHaken } from "../ui/bewegung";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import type { InventurEintrag, InventurErgebnis, Platz, ScanTreffer, Stueck } from "../../gemeinsam/typen";
@@ -143,7 +144,12 @@ export default function InventurPlatz() {
           )}
         </div>
         <div className="h-2.5 overflow-hidden rounded-full bg-flaeche-2" role="progressbar" aria-label="Anteil gefundener Stücke" aria-valuenow={anteil} aria-valuemin={0} aria-valuemax={100}>
-          <div className="h-full rounded-full bg-erfolg transition-[width] duration-300" style={{ width: `${anteil}%` }} />
+          <div className="relative h-full overflow-hidden rounded-full bg-erfolg transition-[width] duration-300" style={{ width: `${anteil}%` }}>
+            {/* Glanz, sobald alles gefunden ist */}
+            {anteil === 100 && erwartet.length > 0 && (
+              <span aria-hidden className="anim-glanz absolute inset-y-0 left-0 w-1/3 bg-gradient-to-r from-transparent via-white/60 to-transparent" />
+            )}
+          </div>
         </div>
         <div className="flex flex-wrap gap-x-4 gap-y-1 text-[13px]">
           <span className={kl("font-semibold", fehlend.length ? "text-gefahr-text" : "text-erfolg-text")}>{fehlend.length} fehlen noch</span>
@@ -358,9 +364,13 @@ function Ergebnis({ e, platzId }: { e: InventurErgebnis; platzId: string }) {
     <div className="mx-auto max-w-2xl space-y-5">
       <SeitenKopf titel="Inventur gespeichert" unter={e.platz?.pfad} />
       <Karte className="flex items-center gap-4 p-5">
-        <span className={kl("flex size-14 shrink-0 items-center justify-center rounded-2xl", vollstaendig ? "bg-erfolg-weich text-erfolg-text" : "bg-warnung-weich text-warnung-text")}>
-          <CheckCircle2 className="size-7" />
-        </span>
+        {vollstaendig ? (
+          <ErfolgsHaken className="size-14" />
+        ) : (
+          <span className="flex size-14 shrink-0 items-center justify-center rounded-2xl bg-warnung-weich text-warnung-text">
+            <CheckCircle2 className="size-7" />
+          </span>
+        )}
         <div>
           <div className="text-xl font-bold">{vollstaendig ? "Alles da" : `${e.gefunden} von ${e.erwartet} gefunden`}</div>
           <div className="text-[13px] text-gedaempft">
