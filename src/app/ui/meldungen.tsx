@@ -15,6 +15,8 @@ interface Meldung {
   aktion?: MeldungsAktion;
 }
 
+const AKTION_MS = 9000;
+
 const Kontext = createContext<(text: string, art?: Art, aktion?: MeldungsAktion) => void>(() => {});
 
 /** Kurze Rückmeldungen ("Toast") unten über der Navigation. */
@@ -24,7 +26,7 @@ export function MeldungenAnbieter({ children }: { children: ReactNode }) {
     const id = Date.now() + Math.random();
     setListe((l) => [...l.slice(-2), { id, art, text, aktion }]);
     // Mit Knopf länger sichtbar, damit man ihn erwischt
-    setTimeout(() => setListe((l) => l.filter((m) => m.id !== id)), aktion ? 9000 : art === "fehler" ? 6000 : 3500);
+    setTimeout(() => setListe((l) => l.filter((m) => m.id !== id)), aktion ? AKTION_MS : art === "fehler" ? 6000 : 3500);
   }, []);
 
   return (
@@ -39,7 +41,7 @@ export function MeldungenAnbieter({ children }: { children: ReactNode }) {
             key={m.id}
             role={m.art === "fehler" ? "alert" : "status"}
             className={kl(
-              "anim-plopp pointer-events-auto flex max-w-md items-center gap-3 rounded-2xl px-4 py-3 text-[15px] font-medium shadow-hoch",
+              "anim-plopp pointer-events-auto relative flex max-w-md items-center gap-3 overflow-hidden rounded-2xl px-4 py-3 text-[15px] font-medium shadow-hoch",
               "bg-text text-hg",
             )}
           >
@@ -47,6 +49,10 @@ export function MeldungenAnbieter({ children }: { children: ReactNode }) {
             {m.art === "fehler" && <XCircle className="size-5 shrink-0 text-gefahr" />}
             {m.art === "info" && <Info className="size-5 shrink-0 text-primaer" />}
             <span className="min-w-0 flex-1">{m.text}</span>
+            {m.aktion && (
+              // Balken zeigt, wie lange „Rückgängig“ noch angeboten wird
+              <span aria-hidden className="anim-ablaufen absolute inset-x-0 bottom-0 h-[3px] bg-primaer" style={{ animationDuration: `${AKTION_MS}ms` }} />
+            )}
             {m.aktion && (
               <button
                 type="button"

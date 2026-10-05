@@ -4,6 +4,7 @@ import type { Recht } from "../gemeinsam/rechte";
 import { SitzungsAnbieter, useSitzung } from "./lib/sitzung";
 import { Rahmen } from "./Rahmen";
 import { Anmelden, Einrichten, PasswortPflicht } from "./seiten/Zugang";
+import { ErfolgsAnbieter } from "./ui/bewegung";
 import { MeldungenAnbieter } from "./ui/meldungen";
 import { Laden } from "./ui/zustand";
 
@@ -68,7 +69,9 @@ export function App() {
     <BrowserRouter>
       <SitzungsAnbieter>
         <MeldungenAnbieter>
-          <Inhalt />
+          <ErfolgsAnbieter>
+            <Inhalt />
+          </ErfolgsAnbieter>
         </MeldungenAnbieter>
       </SitzungsAnbieter>
     </BrowserRouter>

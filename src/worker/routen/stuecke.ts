@@ -1,11 +1,12 @@
 import { Hono } from "hono";
 import { istPlatzCode, normalisiereCode, zufallsKennung } from "../../gemeinsam/codes";
 import { heute, plusTage } from "../../gemeinsam/datum";
-import { stueckAendernSchema, stueckAnlegenSchema } from "../../gemeinsam/schemas";
+import { stammplatzSchema, stueckAendernSchema, stueckAnlegenSchema } from "../../gemeinsam/schemas";
 import { STATUS_NAME, type Ausleihe, type Pruefung, type Seite, type Stueck } from "../../gemeinsam/typen";
 import { csv, csvAntwort, deDatum, ortszeit } from "../csv";
 import {
   alsJson,
+  NICHT_AM_STAMMPLATZ,
   platzMitUnterplaetzen,
   platzPfad,
   plaetzeLaden,
@@ -79,6 +80,9 @@ function filterLesen(c: Ctx, karte: PlatzKarte): { wo: string; werte: (string | 
     case "ohne_inventur":
       bed.push("s.inventur = 0");
       break;
+    case "fremd":
+      bed.push(NICHT_AM_STAMMPLATZ);
+      break;
   }
   return { wo: bed.length ? `WHERE ${bed.join(" AND ")}` : "", werte };
 }
@@ -112,7 +116,7 @@ stueckeRouten.get("/csv", braucht("abfragen"), async (c) => {
     "bestand",
     csv(
       [
-        "Code", "Name", "Kategorie", "Status", "Platz", "Abteilung", "Im Behälter", "Ist Behälter", "Inhalt",
+        "Code", "Name", "Kategorie", "Status", "Platz", "Abteilung", "Im Behälter", "Stammplatz", "Am Stammplatz", "Ist Behälter", "Inhalt",
         "Inventur", "Vermisst seit", "Verliehen an", "Rückgabe bis", "Prüfung", "Prüfintervall (Monate)",
         "Nächste Prüfung", "Zuletzt bewegt", "Bewegt von", "Erfasst", "Beschreibung",
       ],
@@ -126,6 +130,8 @@ stueckeRouten.get("/csv", braucht("abfragen"), async (c) => {
           s.platz?.pfad ?? "",
           s.platz ? (s.platz.pfad.split(" › ")[0] ?? "") : "",
           s.in_behaelter?.name ?? "",
+          [s.stammplatz?.pfad, s.stamm_behaelter?.name].filter(Boolean).join(" › "),
+          s.am_stammplatz === null ? "" : ja(s.am_stammplatz),
           ja(s.behaelter),
           s.behaelter ? s.inhalt : "",
           ja(s.inventur),
@@ -155,7 +161,7 @@ stueckeRouten.get("/:id{[0-9]+}", braucht("abfragen"), async (c) => {
     c.env.DB.prepare(
       `SELECT p.id, p.datum, p.ergebnis, p.notiz, p.naechste, u.name AS benutzer
        FROM pruefungen p JOIN benutzer u ON u.id = p.benutzer_id
-       WHERE p.stueck_id = ? ORDER BY p.datum DESC, p.id DESC LIMIT 50`,
+       WHERE p.stueck_id = ? AND p.geloescht_am IS NULL ORDER BY p.datum DESC, p.id DESC LIMIT 50`,
     )
       .bind(id)
       .all<Pruefung>(),
@@ -207,15 +213,18 @@ stueckeRouten.post("/", braucht("erfassen"), async (c) => {
   const ort = [platzId ? platzPfad(karte, platzId) : "", kisteName && `Behälter „${kisteName}“`].filter(Boolean).join(" › ");
   const stmts: D1PreparedStatement[] = [
     c.env.DB.prepare(
-      `INSERT INTO stuecke (code, name, kategorie, beschreibung, platz_id, in_behaelter_id, behaelter, inventur,
-                            bewegt_am, bewegt_von_id, erstellt_am, geaendert_am)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO stuecke (code, name, kategorie, beschreibung, platz_id, in_behaelter_id, stamm_platz_id, stamm_behaelter_id,
+                            behaelter, inventur, bewegt_am, bewegt_von_id, erstellt_am, geaendert_am)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).bind(
       code,
       e.name,
       e.kategorie,
       e.beschreibung,
       platzId,
+      kisteId,
+      // erster Ort = Stammplatz
+      kisteId ? null : platzId,
       kisteId,
       e.behaelter ? 1 : 0,
       e.inventur ? 1 : 0,
@@ -304,7 +313,12 @@ stueckeRouten.patch("/:id{[0-9]+}", braucht("stuecke_verwalten"), async (c) => {
     await c.env.DB.batch([
       c.env.DB.prepare(
         `UPDATE stuecke SET name = ?, kategorie = ?, beschreibung = ?, status = ?, behaelter = ?, inventur = ?,
-                pruef_art = ?, pruef_intervall = ?, pruef_naechste = ?, geaendert_am = ? WHERE id = ?`,
+                pruef_art = ?, pruef_intervall = ?, pruef_naechste = ?, geaendert_am = ?,
+                -- ein Behälter liegt nie in einem Behälter: Stammplatz wird der Platz des alten Behälters
+                stamm_platz_id = CASE WHEN ? = 1 AND stamm_behaelter_id IS NOT NULL
+                  THEN (SELECT k.platz_id FROM stuecke k WHERE k.id = stuecke.stamm_behaelter_id) ELSE stamm_platz_id END,
+                stamm_behaelter_id = CASE WHEN ? = 1 THEN NULL ELSE stamm_behaelter_id END
+         WHERE id = ?`,
       ).bind(
         neu.name,
         neu.kategorie,
@@ -316,6 +330,8 @@ stueckeRouten.patch("/:id{[0-9]+}", braucht("stuecke_verwalten"), async (c) => {
         neu.pruef_intervall,
         neu.pruef_naechste,
         jetzt(),
+        neu.behaelter ? 1 : 0,
+        neu.behaelter ? 1 : 0,
         id,
       ),
       protokollEintrag(c, {
@@ -340,4 +356,61 @@ stueckeRouten.patch("/:id{[0-9]+}", braucht("stuecke_verwalten"), async (c) => {
   }
   const z = await c.env.DB.prepare(`${STUECK_SELECT} WHERE s.id = ?`).bind(id).first<StueckZeile>();
   return c.json(zuStueck(karte, z!));
+});
+
+/** Stammplatz festlegen: Platz, Behälter, den aktuellen Ort – oder entfernen. */
+stueckeRouten.post("/stammplatz", braucht("buchen"), async (c) => {
+  const e = await eingabe(c, stammplatzSchema);
+  const ids = [...new Set(e.stueck_ids)];
+  const stuecke = await stueckeLaden(c.env.DB, ids);
+  if (stuecke.length !== ids.length) fehler(400, "Mindestens ein Stück wurde nicht gefunden");
+  const karte = await plaetzeLaden(c.env.DB);
+  let stmt: D1PreparedStatement;
+  let ziel: string;
+  if (e.aktuell) {
+    // Behälter selbst liegen nie in Behältern – für sie zählt nur der Platz
+    stmt = c.env.DB.prepare(
+      `UPDATE stuecke SET stamm_platz_id = CASE WHEN in_behaelter_id IS NULL OR behaelter = 1 THEN platz_id END,
+              stamm_behaelter_id = CASE WHEN behaelter = 1 THEN NULL ELSE in_behaelter_id END
+       WHERE id IN (SELECT value FROM json_each(?))`,
+    ).bind(alsJson(ids));
+    ziel = "aktueller Ort";
+  } else if (e.platz_id) {
+    const p = karte.get(e.platz_id);
+    if (!p || !p.aktiv) fehler(400, "Platz nicht gefunden");
+    stmt = c.env.DB.prepare(
+      "UPDATE stuecke SET stamm_platz_id = ?, stamm_behaelter_id = NULL WHERE id IN (SELECT value FROM json_each(?))",
+    ).bind(p.id, alsJson(ids));
+    ziel = platzPfad(karte, p.id);
+  } else if (e.behaelter_id) {
+    const [k] = await stueckeLaden(c.env.DB, [e.behaelter_id]);
+    if (!k || k.behaelter !== 1 || k.status === "ausgemustert") fehler(400, "Behälter nicht gefunden");
+    const kiste = stuecke.find((s) => s.behaelter === 1 || s.id === k.id);
+    if (kiste) fehler(400, `„${kiste.name}“ kann nicht in einem Behälter liegen`);
+    stmt = c.env.DB.prepare(
+      "UPDATE stuecke SET stamm_platz_id = NULL, stamm_behaelter_id = ? WHERE id IN (SELECT value FROM json_each(?))",
+    ).bind(k.id, alsJson(ids));
+    ziel = `Behälter „${k.name}“`;
+  } else {
+    stmt = c.env.DB.prepare(
+      "UPDATE stuecke SET stamm_platz_id = NULL, stamm_behaelter_id = NULL WHERE id IN (SELECT value FROM json_each(?))",
+    ).bind(alsJson(ids));
+    ziel = "";
+  }
+  const wen = ids.length === 1 ? `„${stuecke[0]!.name}“ (${stuecke[0]!.code})` : `${ids.length} Stücke`;
+  await c.env.DB.batch([
+    stmt,
+    protokollEintrag(c, {
+      aktion: "stammplatz",
+      objekt_typ: "stueck",
+      objekt_id: ids.length === 1 ? ids[0] : null,
+      text: ziel ? `Stammplatz für ${wen}: ${ziel}` : `Stammplatz für ${wen} entfernt`,
+      vorher: stuecke.map((s) => ({ code: s.code, stamm_platz_id: s.stamm_platz_id, stamm_behaelter_id: s.stamm_behaelter_id })),
+      nachher: { ziel: ziel || null },
+    }),
+  ]);
+  const { results } = await c.env.DB.prepare(`${STUECK_SELECT} WHERE s.id IN (SELECT value FROM json_each(?))`)
+    .bind(alsJson(ids))
+    .all<StueckZeile>();
+  return c.json(results.map((z) => zuStueck(karte, z)));
 });

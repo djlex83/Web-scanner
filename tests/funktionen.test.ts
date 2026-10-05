@@ -256,6 +256,145 @@ describe("Einrichtung einer neuen Datenbank", () => {
     const erster = await gast.get("/auth/einrichten");
     expect(erster.status).toBe(503);
     expect(erster.daten.fehler).toContain("neu laden");
-    expect((await gast.get("/auth/einrichten")).daten).toEqual({ noetig: true });
+    // jeder Aufruf spielt einen Teil ein; die App wiederholt bis zu 4-mal
+    let versuche = 1;
+    let r = erster;
+    while (r.status === 503 && versuche < 5) (r = await gast.get("/auth/einrichten")), versuche++;
+    expect(r.daten).toEqual({ noetig: true });
+    expect(versuche).toBeLessThanOrEqual(4);
+  });
+});
+
+describe("Stammplatz und Zurückräumen", () => {
+  it("erster Ort wird Stammplatz; Zurückräumen bucht jedes Stück an seinen eigenen Stammplatz", async () => {
+    const { admin, r1, r2, ids } = await aufbau();
+    const leiter = (await admin.post("/stuecke", { code: "L-1", name: "Leiter", platz_id: r2.id })).daten;
+    const neu = (await admin.post("/stuecke", { code: "N-1", name: "Ohne Platz" })).daten;
+    expect((await admin.get(`/stuecke/${ids["A-1"]}`)).daten.stueck).toMatchObject({ stammplatz: { id: r1.id }, am_stammplatz: true });
+    expect(neu.am_stammplatz).toBeNull();
+
+    // alles durcheinander: A-1, A-2 nach Regal 2, Leiter nach Regal 1
+    await admin.post("/buchungen", { nach_platz_id: r2.id, stueck_ids: [ids["A-1"], ids["A-2"]] });
+    await admin.post("/buchungen", { nach_platz_id: r1.id, stueck_ids: [leiter.id] });
+    expect((await admin.get(`/stuecke/${ids["A-1"]}`)).daten.stueck).toMatchObject({ stammplatz: { id: r1.id }, am_stammplatz: false });
+    expect((await admin.get("/uebersicht")).daten.nicht_am_stammplatz).toBe(3);
+    expect((await admin.get("/stuecke?merkmal=fremd")).daten.eintraege).toHaveLength(3);
+
+    const r = await admin.post("/buchungen/zurueckraeumen", { stueck_ids: [ids["A-1"], ids["A-2"], ids["A-3"], leiter.id, neu.id] });
+    expect(r.status).toBe(200);
+    expect(r.daten).toMatchObject({ gebucht: 3, schon_dort: 1, ohne_stammplatz: [{ name: "Ohne Platz" }] });
+    expect((await admin.get(`/stuecke/${leiter.id}`)).daten.stueck.platz.id).toBe(r2.id);
+    expect((await admin.get(`/stuecke/${ids["A-2"]}`)).daten.stueck.platz.id).toBe(r1.id);
+    expect((await admin.get("/uebersicht")).daten.nicht_am_stammplatz).toBe(0);
+    expect((await admin.get("/protokoll")).daten.eintraege[0]).toMatchObject({ aktion: "zurueckgeraeumt" });
+
+    // Rückgängig bringt alles wieder durcheinander, Stammplatz bleibt
+    await admin.post("/buchungen/rueckgaengig", { vorgang_id: r.daten.vorgang_id });
+    expect((await admin.get(`/stuecke/${leiter.id}`)).daten.stueck).toMatchObject({ platz: { id: r1.id }, stammplatz: { id: r2.id } });
+  });
+
+  it("Stammplatz in einem Behälter: zurück in die Kiste, egal wo sie gerade steht", async () => {
+    const { admin, r1, r2 } = await aufbau();
+    const kiste = (await admin.post("/stuecke", { name: "Kiste", behaelter: true, platz_id: r1.id })).daten;
+    const zange = (await admin.post("/stuecke", { code: "Z-1", name: "Zange", in_behaelter_id: kiste.id })).daten;
+    expect(zange).toMatchObject({ stamm_behaelter: { id: kiste.id }, am_stammplatz: true });
+    await admin.post("/buchungen", { nach_platz_id: r1.id, stueck_ids: [zange.id] });
+    await admin.post("/buchungen", { nach_platz_id: r2.id, stueck_ids: [kiste.id] });
+    const r = await admin.post("/buchungen/zurueckraeumen", { stueck_ids: [zange.id] });
+    expect(r.daten.gebucht).toBe(1);
+    expect((await admin.get(`/stuecke/${zange.id}`)).daten.stueck).toMatchObject({ in_behaelter: { id: kiste.id }, platz: { id: r2.id }, am_stammplatz: true });
+  });
+
+  it("Stammplatz neu festlegen: beim Einlagern, aktueller Ort, entfernen; Rechte", async () => {
+    const { admin, r1, r2, ids } = await aufbau();
+    const leser = await benutzerMit(admin, "lea", "leser");
+    const ma = await benutzerMit(admin, "mia", "mitarbeiter");
+    // Einlagern mit „neuer Stammplatz“ – auch für Stücke, die schon dort liegen
+    await ma.post("/buchungen", { nach_platz_id: r2.id, stueck_ids: [ids["A-1"]], stammplatz: true });
+    await ma.post("/buchungen", { nach_platz_id: r1.id, stueck_ids: [ids["A-2"]], stammplatz: true });
+    expect((await admin.get(`/stuecke/${ids["A-1"]}`)).daten.stueck).toMatchObject({ stammplatz: { id: r2.id }, am_stammplatz: true });
+    // ohne Haken bleibt der Stammplatz
+    await ma.post("/buchungen", { nach_platz_id: r1.id, stueck_ids: [ids["A-1"]] });
+    expect((await admin.get(`/stuecke/${ids["A-1"]}`)).daten.stueck.stammplatz.id).toBe(r2.id);
+
+    expect((await leser.post("/stuecke/stammplatz", { stueck_ids: [ids["A-1"]], aktuell: true })).status).toBe(403);
+    const akt = await ma.post("/stuecke/stammplatz", { stueck_ids: [ids["A-1"]], aktuell: true });
+    expect(akt.daten[0]).toMatchObject({ stammplatz: { id: r1.id }, am_stammplatz: true });
+    const weg = await ma.post("/stuecke/stammplatz", { stueck_ids: [ids["A-1"]] });
+    expect(weg.daten[0]).toMatchObject({ stammplatz: null, am_stammplatz: null });
+    expect((await ma.post("/stuecke/stammplatz", { stueck_ids: [ids["A-1"]], platz_id: r1.id, aktuell: true })).status).toBe(400);
+  });
+
+  it("vorhandene Stücke bekommen beim Update ihren ersten Lagerplatz als Stammplatz", async () => {
+    const { admin, r1, r2, ids } = await aufbau();
+    await admin.post("/buchungen", { nach_platz_id: r2.id, stueck_ids: [ids["A-1"]] });
+    // Zustand vor dem Update nachstellen und die Migration erneut ausführen
+    await env.DB.prepare("UPDATE stuecke SET stamm_platz_id = NULL, stamm_behaelter_id = NULL").run();
+    const { MIGRATIONEN } = await import("../src/worker/db/migrationen");
+    for (const sql of MIGRATIONEN.find((m) => m.version === 4)!.sql.filter((q) => q.trim().startsWith("UPDATE"))) {
+      await env.DB.prepare(sql).run();
+    }
+    expect((await admin.get(`/stuecke/${ids["A-1"]}`)).daten.stueck).toMatchObject({ stammplatz: { id: r1.id }, am_stammplatz: false });
+  });
+});
+
+describe("Prüfung: 1 Jahr Standard und Löschen", () => {
+  it("nächster Termin: ohne Intervall 1 Jahr, mit Intervall dieses, null = keiner", async () => {
+    const { admin, ids } = await aufbau();
+    const a = await admin.post("/pruefungen", { stueck_id: ids["A-1"], datum: "2026-03-15", ergebnis: "bestanden" });
+    expect(a.daten.pruefung.naechste).toBe("2027-03-15");
+    await admin.patch(`/stuecke/${ids["A-2"]}`, { pruef_intervall: 6 });
+    const b = await admin.post("/pruefungen", { stueck_id: ids["A-2"], datum: "2026-03-15", ergebnis: "bestanden" });
+    expect(b.daten.pruefung.naechste).toBe("2026-09-15");
+    const c = await admin.post("/pruefungen", { stueck_id: ids["A-3"], datum: "2026-03-15", ergebnis: "bestanden", naechste: null });
+    expect(c.daten.pruefung.naechste).toBeNull();
+  });
+
+  it("löschen nur ab Leitung, verschwindet aus der Liste, Termin springt zurück, Nachweis bleibt", async () => {
+    const { admin, ids } = await aufbau();
+    const ma = await benutzerMit(admin, "mia", "mitarbeiter");
+    const leitung = await benutzerMit(admin, "leo", "leitung");
+    await admin.patch(`/stuecke/${ids["A-1"]}`, { pruef_art: "Elektroprüfung", pruef_naechste: "2026-01-01" });
+    await ma.post("/pruefungen", { stueck_id: ids["A-1"], datum: "2025-12-20", ergebnis: "bestanden" });
+    await ma.post("/pruefungen", { stueck_id: ids["A-1"], datum: "2026-02-01", ergebnis: "mangel" });
+    let detail = (await admin.get(`/stuecke/${ids["A-1"]}`)).daten;
+    expect(detail.stueck.pruefung.naechste).toBe("2027-02-01");
+    const [neueste, aeltere] = detail.pruefungen;
+
+    expect((await ma.post(`/pruefungen/${neueste.id}/loeschen`, { grund: "versehentlich" })).status).toBe(403);
+    const r = await leitung.post(`/pruefungen/${neueste.id}/loeschen`, { grund: "versehentlich doppelt" });
+    expect(r.daten).toEqual({ geloescht: true, pruef_naechste: "2026-12-20" });
+    detail = (await admin.get(`/stuecke/${ids["A-1"]}`)).daten;
+    expect(detail.pruefungen.map((p: any) => p.id)).toEqual([aeltere.id]);
+    expect(detail.stueck.pruefung.naechste).toBe("2026-12-20");
+    expect((await leitung.post(`/pruefungen/${neueste.id}/loeschen`, {})).status).toBe(409);
+
+    // ältere löschen ändert den Termin nicht mehr, wenn sie nicht die neueste ist – hier ist sie es jetzt
+    const r2 = await admin.post(`/pruefungen/${aeltere.id}/loeschen`, {});
+    expect(r2.daten.pruef_naechste).toBe("2026-01-01");
+
+    const prot = (await admin.get("/protokoll")).daten.eintraege;
+    expect(prot[1]).toMatchObject({ aktion: "pruefung_geloescht" });
+    expect(prot[1].text).toContain("versehentlich doppelt");
+    // Nachweis bleibt, Inhalt bleibt unveränderbar
+    const roh = await env.DB.prepare("SELECT COUNT(*) AS n FROM pruefungen WHERE geloescht_am IS NOT NULL").first<{ n: number }>();
+    expect(roh?.n).toBe(2);
+    await expect(env.DB.prepare("UPDATE pruefungen SET ergebnis = 'bestanden'").run()).rejects.toThrow(/unveraenderbar/);
+    await expect(env.DB.prepare("UPDATE pruefungen SET geloescht_am = NULL").run()).rejects.toThrow(/unveraenderbar/);
+    await expect(env.DB.prepare("DELETE FROM pruefungen").run()).rejects.toThrow(/unveraenderbar/);
+  });
+});
+
+describe("Teilweise ändern", () => {
+  it("nicht mitgeschickte Felder bleiben erhalten, leere werden gelöscht", async () => {
+    const { admin, r1, ids } = await aufbau();
+    await admin.patch(`/stuecke/${ids["A-1"]}`, { kategorie: "Werkzeug", beschreibung: "mit Koffer", pruef_art: "Elektroprüfung" });
+    const nurTermin = await admin.patch(`/stuecke/${ids["A-1"]}`, { pruef_naechste: "2027-01-01" });
+    expect(nurTermin.daten).toMatchObject({ kategorie: "Werkzeug", beschreibung: "mit Koffer", pruefung: { art: "Elektroprüfung", naechste: "2027-01-01" } });
+    const leer = await admin.patch(`/stuecke/${ids["A-1"]}`, { beschreibung: "" });
+    expect(leer.daten).toMatchObject({ kategorie: "Werkzeug", beschreibung: null });
+
+    await admin.patch(`/plaetze/${r1.id}`, { notiz: "hinten links" });
+    expect((await admin.patch(`/plaetze/${r1.id}`, { name: "Regal Eins" })).daten).toMatchObject({ name: "Regal Eins", notiz: "hinten links" });
   });
 });

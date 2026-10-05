@@ -16,6 +16,8 @@ export interface BewegungsKontext {
   benutzer_id: number;
   zeit: string;
   notiz: string | null;
+  /** Stammplatz beim ersten Einlagern setzen (Standard) oder nie anfassen (Rückgängig, Zurückräumen) */
+  stamm?: "wenn_leer" | "nie";
 }
 
 /** Wert aus der JSON-Liste für das Stück mit der ID in `spalte`. */
@@ -55,14 +57,28 @@ export function bewegen(db: D1Database, k: BewegungsKontext, liste: Bewegung[]):
          WHERE in_behaelter_id IN ${idsAusListe} AND status != 'ausgemustert'`,
       )
       .bind(j, k.zeit, k.benutzer_id, k.zeit, j),
-    // 3. Die Stücke selbst; wer bewegt wird, ist nicht mehr vermisst
-    db
-      .prepare(
-        `UPDATE stuecke SET platz_id = ${ausListe("p", "stuecke.id")}, in_behaelter_id = ${ausListe("b", "stuecke.id")},
-                bewegt_am = ?, bewegt_von_id = ?, geaendert_am = ?, vermisst_seit = NULL
-         WHERE id IN ${idsAusListe}`,
-      )
-      .bind(j, j, k.zeit, k.benutzer_id, k.zeit, j),
+    // 3. Die Stücke selbst; wer bewegt wird, ist nicht mehr vermisst.
+    //    Ohne Stammplatz wird der erste Ort zum Stammplatz (Behälter oder Platz).
+    k.stamm === "nie"
+      ? db
+          .prepare(
+            `UPDATE stuecke SET platz_id = ${ausListe("p", "stuecke.id")}, in_behaelter_id = ${ausListe("b", "stuecke.id")},
+                    bewegt_am = ?, bewegt_von_id = ?, geaendert_am = ?, vermisst_seit = NULL
+             WHERE id IN ${idsAusListe}`,
+          )
+          .bind(j, j, k.zeit, k.benutzer_id, k.zeit, j)
+      : db
+          .prepare(
+            `UPDATE stuecke SET platz_id = ${ausListe("p", "stuecke.id")}, in_behaelter_id = ${ausListe("b", "stuecke.id")},
+                    stamm_platz_id = CASE WHEN stamm_platz_id IS NULL AND stamm_behaelter_id IS NULL
+                      THEN CASE WHEN ${ausListe("b", "stuecke.id")} IS NULL THEN ${ausListe("p", "stuecke.id")} END
+                      ELSE stamm_platz_id END,
+                    stamm_behaelter_id = CASE WHEN stamm_platz_id IS NULL AND stamm_behaelter_id IS NULL
+                      THEN ${ausListe("b", "stuecke.id")} ELSE stamm_behaelter_id END,
+                    bewegt_am = ?, bewegt_von_id = ?, geaendert_am = ?, vermisst_seit = NULL
+             WHERE id IN ${idsAusListe}`,
+          )
+          .bind(j, j, j, j, j, k.zeit, k.benutzer_id, k.zeit, j),
     // 4. Verliehene Stücke gelten mit dem Einbuchen als zurückgegeben
     db
       .prepare(`UPDATE ausleihen SET zurueck_am = ?, zurueck_von_id = ? WHERE zurueck_am IS NULL AND stueck_id IN ${idsAusListe}`)
@@ -80,12 +96,15 @@ export interface StueckOrt {
   behaelter: number;
   vermisst_seit: string | null;
   verliehen: number;
+  stamm_platz_id: number | null;
+  stamm_behaelter_id: number | null;
 }
 
 export async function stueckeLaden(db: D1Database, ids: number[]): Promise<StueckOrt[]> {
   const { results } = await db
     .prepare(
       `SELECT s.id, s.code, s.name, s.status, s.platz_id, s.in_behaelter_id, s.behaelter, s.vermisst_seit,
+              s.stamm_platz_id, s.stamm_behaelter_id,
               EXISTS (SELECT 1 FROM ausleihen a WHERE a.stueck_id = s.id AND a.zurueck_am IS NULL) AS verliehen
        FROM stuecke s WHERE s.id IN (SELECT value FROM json_each(?))`,
     )

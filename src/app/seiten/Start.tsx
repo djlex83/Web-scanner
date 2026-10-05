@@ -1,10 +1,11 @@
-import { AlertTriangle, ArrowRight, ArrowRightLeft, Boxes, Handshake, MapPinOff, Printer, Repeat2, ScanSearch, SearchX, Warehouse, Wrench } from "lucide-react";
+import { AlertTriangle, ArrowRight, ArrowRightLeft, Boxes, Handshake, House, MapPinOff, Printer, Repeat2, ScanSearch, SearchX, Warehouse, Wrench } from "lucide-react";
 import type { ReactNode } from "react";
 import { Link } from "react-router";
 import type { Uebersicht } from "../../gemeinsam/typen";
 import { BewegungsZeile } from "../komponenten/BewegungsZeile";
 import { useLaden } from "../lib/hooks";
 import { useIch, useSitzung } from "../lib/sitzung";
+import { Hochzaehler } from "../ui/bewegung";
 import { Abschnitt, Kennzahl, Liste, Zeile } from "../ui/karte";
 import { kl } from "../ui/kl";
 import { FehlerHinweis, Leer, Skelett } from "../ui/zustand";
@@ -56,14 +57,14 @@ export default function Start() {
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {daten ? (
           <>
-            <Kennzahl wert={daten.stuecke.toLocaleString("de-DE")} text="Stücke im Bestand" symbol={<Boxes />} zu="/stuecke" />
-            <Kennzahl wert={daten.plaetze.toLocaleString("de-DE")} text="Plätze" symbol={<Warehouse />} zu="/plaetze" />
-            <Kennzahl wert={daten.bewegungen_heute.toLocaleString("de-DE")} text="Bewegungen heute" symbol={<Repeat2 />} ton="erfolg" zu="/protokoll" />
+            <Kennzahl wert={<Hochzaehler wert={daten.stuecke} />} text="Stücke im Bestand" symbol={<Boxes />} zu="/stuecke" />
+            <Kennzahl wert={<Hochzaehler wert={daten.plaetze} />} text="Plätze" symbol={<Warehouse />} zu="/plaetze" />
+            <Kennzahl wert={<Hochzaehler wert={daten.bewegungen_heute} />} text="Bewegungen heute" symbol={<Repeat2 />} ton="erfolg" zu="/protokoll" />
             {daten.defekt > 0 ? (
-              <Kennzahl wert={daten.defekt} text="als defekt markiert" symbol={<AlertTriangle />} ton="gefahr" zu="/stuecke?status=defekt" />
+              <Kennzahl wert={<Hochzaehler wert={daten.defekt} />} text="als defekt markiert" symbol={<AlertTriangle />} ton="gefahr" zu="/stuecke?status=defekt" />
             ) : (
               <Kennzahl
-                wert={daten.ohne_platz}
+                wert={<Hochzaehler wert={daten.ohne_platz} />}
                 text="ohne Platz"
                 symbol={<MapPinOff />}
                 ton={daten.ohne_platz ? "warnung" : "neutral"}
@@ -182,6 +183,14 @@ function Hinweise({ u }: { u: Uebersicht }) {
     liste.push({ zu: "/pruefungen", symbol: <Wrench />, titel: `${u.pruefung_ueberfaellig} Prüfung${u.pruefung_ueberfaellig === 1 ? "" : "en"} überfällig`, unter: u.pruefung_bald ? `${u.pruefung_bald} weitere in den nächsten 30 Tagen` : "Termin abgelaufen", ton: gefahr });
   else if (u.pruefung_bald)
     liste.push({ zu: "/pruefungen", symbol: <Wrench />, titel: `${u.pruefung_bald} Prüfung${u.pruefung_bald === 1 ? "" : "en"} bald fällig`, unter: "in den nächsten 30 Tagen", ton: warnung });
+  if (u.nicht_am_stammplatz)
+    liste.push({
+      zu: "/stuecke?merkmal=fremd",
+      symbol: <House />,
+      titel: `${u.nicht_am_stammplatz} nicht am Stammplatz`,
+      unter: "Einsammeln und unter Scannen › Aufräumen zurückbuchen",
+      ton: "bg-primaer-weich text-primaer-text",
+    });
   if (!liste.length) return null;
   return (
     <Abschnitt titel="Zu erledigen">
