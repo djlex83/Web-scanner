@@ -1,0 +1,22 @@
+name: Prüfen
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  pruefen:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Typprüfung
+        run: npx tsc -b
+      - name: Tests (Workers-Laufzeit)
+        run: npm test
+      - name: Bauen
+        run: npx vite build

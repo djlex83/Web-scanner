@@ -1,0 +1,210 @@
+@import "tailwindcss";
+@import "@fontsource-variable/inter";
+
+/* ─── Design-Tokens ──────────────────────────────────────────────────────────
+   Farben nur über diese Tokens verwenden (bg-flaeche, text-gedaempft, …),
+   nie feste Farbwerte in Komponenten. Hell/Dunkel über data-theme am <html>.
+   Doku: docs/design-system.md                                                */
+
+:root {
+  --hg: oklch(0.975 0.004 264);          /* Seitenhintergrund */
+  --flaeche: oklch(1 0 0);               /* Karten, Listen */
+  --flaeche-2: oklch(0.955 0.006 264);   /* eingelassene Flächen, Hover */
+  --rand: oklch(0.905 0.008 264);
+  --rand-stark: oklch(0.6 0.012 264);    /* Eingabefelder: ≥ 3:1 (WCAG 1.4.11) */
+  --text: oklch(0.2 0.02 268);
+  --gedaempft: oklch(0.5 0.02 268);
+  --primaer: oklch(0.53 0.21 272);       /* Indigo */
+  --primaer-hover: oklch(0.47 0.21 272);
+  --primaer-weich: oklch(0.95 0.035 272);
+  --primaer-text: oklch(0.42 0.19 272);
+  --auf-primaer: oklch(0.99 0 0);
+  --erfolg: oklch(0.6 0.15 155);
+  --erfolg-weich: oklch(0.95 0.05 155);
+  --erfolg-text: oklch(0.42 0.12 155);
+  --warnung: oklch(0.78 0.15 75);
+  --warnung-weich: oklch(0.96 0.06 85);
+  --warnung-text: oklch(0.48 0.12 65);
+  --gefahr: oklch(0.58 0.21 25);
+  --gefahr-weich: oklch(0.95 0.035 25);
+  --gefahr-text: oklch(0.48 0.19 25);
+  --schatten: 0 1px 2px oklch(0.2 0.02 268 / 0.06), 0 4px 16px -4px oklch(0.2 0.02 268 / 0.08);
+  --schatten-hoch: 0 12px 40px -8px oklch(0.2 0.03 268 / 0.25);
+  /* Kategorie-Farben (Hintergrund / Symbol) */
+  --kat-grau-bg: oklch(0.93 0.008 264);
+  --kat-grau-fg: oklch(0.45 0.02 264);
+  --kat-blau-bg: oklch(0.94 0.045 255);
+  --kat-blau-fg: oklch(0.48 0.15 255);
+  --kat-gruen-bg: oklch(0.94 0.045 150);
+  --kat-gruen-fg: oklch(0.48 0.15 150);
+  --kat-gelb-bg: oklch(0.94 0.045 85);
+  --kat-gelb-fg: oklch(0.47 0.12 85);
+  --kat-orange-bg: oklch(0.94 0.045 50);
+  --kat-orange-fg: oklch(0.48 0.15 50);
+  --kat-rot-bg: oklch(0.94 0.045 25);
+  --kat-rot-fg: oklch(0.48 0.15 25);
+  --kat-lila-bg: oklch(0.94 0.045 300);
+  --kat-lila-fg: oklch(0.48 0.15 300);
+  --kat-pink-bg: oklch(0.94 0.045 350);
+  --kat-pink-fg: oklch(0.48 0.15 350);
+  --kat-tuerkis-bg: oklch(0.94 0.045 195);
+  --kat-tuerkis-fg: oklch(0.48 0.15 195);
+  color-scheme: light;
+}
+
+:root[data-theme="dunkel"] {
+  --hg: oklch(0.16 0.012 268);
+  --flaeche: oklch(0.205 0.014 268);
+  --flaeche-2: oklch(0.25 0.016 268);
+  --rand: oklch(0.3 0.016 268);
+  --rand-stark: oklch(0.55 0.016 268);
+  --text: oklch(0.96 0.005 268);
+  --gedaempft: oklch(0.7 0.015 268);
+  --primaer: oklch(0.65 0.18 272);
+  --primaer-hover: oklch(0.71 0.16 272);
+  --primaer-weich: oklch(0.3 0.07 272);
+  --primaer-text: oklch(0.8 0.12 272);
+  --auf-primaer: oklch(0.16 0.02 268);
+  --erfolg: oklch(0.7 0.15 155);
+  --erfolg-weich: oklch(0.3 0.06 155);
+  --erfolg-text: oklch(0.82 0.12 155);
+  --warnung: oklch(0.8 0.14 75);
+  --warnung-weich: oklch(0.32 0.06 75);
+  --warnung-text: oklch(0.86 0.12 80);
+  --gefahr: oklch(0.68 0.19 25);
+  --gefahr-weich: oklch(0.32 0.08 25);
+  --gefahr-text: oklch(0.82 0.12 25);
+  --schatten: 0 1px 2px oklch(0 0 0 / 0.3), 0 4px 16px -4px oklch(0 0 0 / 0.35);
+  --schatten-hoch: 0 12px 40px -8px oklch(0 0 0 / 0.6);
+  --kat-grau-bg: oklch(0.3 0.012 264);
+  --kat-grau-fg: oklch(0.82 0.015 264);
+  --kat-blau-bg: oklch(0.32 0.07 255);
+  --kat-blau-fg: oklch(0.84 0.11 255);
+  --kat-gruen-bg: oklch(0.32 0.07 150);
+  --kat-gruen-fg: oklch(0.84 0.11 150);
+  --kat-gelb-bg: oklch(0.32 0.07 85);
+  --kat-gelb-fg: oklch(0.84 0.11 85);
+  --kat-orange-bg: oklch(0.32 0.07 50);
+  --kat-orange-fg: oklch(0.84 0.11 50);
+  --kat-rot-bg: oklch(0.32 0.07 25);
+  --kat-rot-fg: oklch(0.84 0.11 25);
+  --kat-lila-bg: oklch(0.32 0.07 300);
+  --kat-lila-fg: oklch(0.84 0.11 300);
+  --kat-pink-bg: oklch(0.32 0.07 350);
+  --kat-pink-fg: oklch(0.84 0.11 350);
+  --kat-tuerkis-bg: oklch(0.32 0.07 195);
+  --kat-tuerkis-fg: oklch(0.84 0.11 195);
+  color-scheme: dark;
+}
+
+@theme inline {
+  --font-sans: "Inter Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --color-hg: var(--hg);
+  --color-flaeche: var(--flaeche);
+  --color-flaeche-2: var(--flaeche-2);
+  --color-rand: var(--rand);
+  --color-rand-stark: var(--rand-stark);
+  --color-text: var(--text);
+  --color-gedaempft: var(--gedaempft);
+  --color-primaer: var(--primaer);
+  --color-primaer-hover: var(--primaer-hover);
+  --color-primaer-weich: var(--primaer-weich);
+  --color-primaer-text: var(--primaer-text);
+  --color-auf-primaer: var(--auf-primaer);
+  --color-erfolg: var(--erfolg);
+  --color-erfolg-weich: var(--erfolg-weich);
+  --color-erfolg-text: var(--erfolg-text);
+  --color-warnung: var(--warnung);
+  --color-warnung-weich: var(--warnung-weich);
+  --color-warnung-text: var(--warnung-text);
+  --color-gefahr: var(--gefahr);
+  --color-gefahr-weich: var(--gefahr-weich);
+  --color-gefahr-text: var(--gefahr-text);
+  --shadow-karte: var(--schatten);
+  --shadow-hoch: var(--schatten-hoch);
+  --radius-karte: 1.25rem;
+  --ease-feder: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+@custom-variant dark (&:where([data-theme="dunkel"], [data-theme="dunkel"] *));
+
+@layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+    text-size-adjust: 100%;
+  }
+  body {
+    @apply bg-hg text-text font-sans antialiased;
+    font-feature-settings: "cv11", "ss01";
+    overscroll-behavior-y: none;
+  }
+  :focus-visible {
+    outline: 2px solid var(--primaer);
+    outline-offset: 2px;
+  }
+  input,
+  select,
+  textarea {
+    font-size: 16px; /* verhindert Zoom beim Fokus auf iOS */
+  }
+}
+
+@layer utilities {
+  .zahlen {
+    font-variant-numeric: tabular-nums;
+  }
+  .sicher-unten {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .sicher-oben {
+    padding-top: env(safe-area-inset-top);
+  }
+}
+
+/* Bewegungen: nur wenn erwünscht */
+@keyframes einblenden {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes hochgleiten {
+  from { transform: translateY(100%); }
+  to { transform: none; }
+}
+@keyframes aufploppen {
+  0% { transform: scale(0.96); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+@keyframes scanlinie {
+  0%, 100% { top: 6%; opacity: 0.25; }
+  50% { top: 93%; opacity: 1; }
+}
+@keyframes treffer {
+  0% { box-shadow: 0 0 0 0 oklch(0.7 0.15 155 / 0.7); }
+  100% { box-shadow: 0 0 0 18px oklch(0.7 0.15 155 / 0); }
+}
+@utility anim-ein {
+  animation: einblenden 0.28s var(--ease-feder) both;
+  @media (prefers-reduced-motion: reduce) { animation: none; }
+}
+@utility anim-hoch {
+  animation: hochgleiten 0.38s var(--ease-feder) both;
+  @media (prefers-reduced-motion: reduce) { animation: none; }
+}
+@utility anim-plopp {
+  animation: aufploppen 0.22s var(--ease-feder) both;
+  @media (prefers-reduced-motion: reduce) { animation: none; }
+}
+@utility anim-scan {
+  animation: scanlinie 2.4s ease-in-out infinite;
+  @media (prefers-reduced-motion: reduce) { animation: none; }
+}
+@utility anim-treffer {
+  animation: treffer 0.6s ease-out;
+}
+
+/* Druck: Etiketten */
+@media print {
+  @page { size: A4; margin: 0; }
+  body { background: white; }
+  .nicht-drucken { display: none !important; }
+}
