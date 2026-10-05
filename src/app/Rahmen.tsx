@@ -1,4 +1,4 @@
-import { Boxes, History, Home, LogOut, Menu, ScanLine, UserRound, Users, Warehouse } from "lucide-react";
+import { Boxes, ClipboardCheck, Handshake, History, Home, LogOut, Menu, ScanLine, UserRound, Users, Warehouse, Wrench } from "lucide-react";
 import type { ReactNode } from "react";
 import { NavLink, Outlet, useLocation } from "react-router";
 import type { Recht } from "../gemeinsam/rechte";
@@ -18,6 +18,9 @@ const NAVIGATION: NavPunkt[] = [
   { zu: "/scannen", text: "Scannen", symbol: <ScanLine /> },
   { zu: "/stuecke", text: "Bestand", symbol: <Boxes /> },
   { zu: "/plaetze", text: "Plätze", symbol: <Warehouse /> },
+  { zu: "/ausleihen", text: "Ausleihen", symbol: <Handshake /> },
+  { zu: "/inventur", text: "Inventur", symbol: <ClipboardCheck /> },
+  { zu: "/pruefungen", text: "Prüfungen", symbol: <Wrench /> },
   { zu: "/protokoll", text: "Protokoll", symbol: <History /> },
   { zu: "/benutzer", text: "Benutzer", symbol: <Users />, recht: "benutzer_verwalten" },
   { zu: "/konto", text: "Mein Konto", symbol: <UserRound /> },
@@ -53,7 +56,7 @@ export function Rahmen() {
         <div className="px-2">
           <Logo />
         </div>
-        <nav aria-label="Hauptnavigation" className="mt-8 flex-1 space-y-1">
+        <nav aria-label="Hauptnavigation" className="mt-6 flex-1 space-y-0.5 overflow-y-auto">
           {punkte.map((p) => (
             <NavLink
               key={p.zu}
@@ -61,7 +64,7 @@ export function Rahmen() {
               end={p.zu === "/"}
               className={({ isActive }) =>
                 kl(
-                  "flex h-12 items-center gap-3 rounded-xl px-3 text-[15px] font-semibold transition [&_svg]:size-5",
+                  "flex h-11 items-center gap-3 rounded-xl px-3 text-[15px] font-semibold transition [&_svg]:size-5",
                   isActive ? "bg-primaer-weich text-primaer-text" : "text-gedaempft hover:bg-flaeche-2 hover:text-text",
                 )
               }
@@ -116,7 +119,7 @@ function UnterNavigation() {
     { zu: "/mehr", text: "Mehr", symbol: <Menu /> },
   ];
   const ort = useLocation();
-  const mehrAktiv = ["/mehr", "/protokoll", "/benutzer", "/konto", "/kategorien"].some((p) => ort.pathname.startsWith(p));
+  const mehrAktiv = ["/mehr", "/protokoll", "/benutzer", "/konto", "/kategorien", "/ausleihen", "/inventur", "/pruefungen"].some((p) => ort.pathname.startsWith(p));
 
   return (
     <nav

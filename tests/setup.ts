@@ -1,6 +1,6 @@
 import { env } from "cloudflare:workers";
 import { beforeEach } from "vitest";
-import { schemaVergessen } from "../src/worker/db/migrationen";
+import { schemaSicherstellen, schemaVergessen } from "../src/worker/db/migrationen";
 
 // Jeder Test beginnt mit einer leeren Datenbank.
 beforeEach(async () => {
@@ -12,4 +12,13 @@ beforeEach(async () => {
   const namen = [...zuerst, ...results.map((r) => r.name).filter((n) => !zuerst.includes(n))];
   for (const name of namen) await env.DB.prepare(`DROP TABLE IF EXISTS "${name}"`).run();
   schemaVergessen();
+  // Schema schrittweise einspielen (wie in mehreren Aufrufen nacheinander)
+  for (let i = 0; i < 5; i++) {
+    try {
+      await schemaSicherstellen(env.DB);
+      break;
+    } catch {
+      /* nächster Schritt */
+    }
+  }
 });

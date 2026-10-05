@@ -1,4 +1,4 @@
-import { ChevronRight, DatabaseBackup, History, KeyRound, LogOut, Monitor, Moon, Shapes, Sun, UserRound, Users } from "lucide-react";
+import { ChevronRight, ClipboardCheck, DatabaseBackup, Handshake, History, KeyRound, LogOut, Monitor, Moon, Shapes, Sun, UserRound, Users, Wrench } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router";
 import { fehlerText, senden } from "../lib/api";
@@ -158,6 +158,9 @@ export function Mehr() {
       <SeitenKopf titel="Mehr" />
       <Liste>
         <Zeile symbol={<UserRound />} titel={ich.name} unter="Mein Konto und Einstellungen" zu="/konto" />
+        <Zeile symbol={<Handshake />} titel="Ausleihen" unter="Wer hat was – und bis wann?" zu="/ausleihen" />
+        <Zeile symbol={<ClipboardCheck />} titel="Inventur" unter="Regal für Regal zählen" zu="/inventur" />
+        <Zeile symbol={<Wrench />} titel="Prüfungen" unter="Prüf- und Wartungstermine" zu="/pruefungen" />
         <Zeile symbol={<History />} titel="Protokoll" unter="Bewegungen und Aktionen" zu="/protokoll" />
         {darf("stuecke_verwalten") && <Zeile symbol={<Shapes />} titel="Kategorien" unter="Symbole und Farben festlegen" zu="/kategorien" />}
         {darf("benutzer_verwalten") && <Zeile symbol={<Users />} titel="Benutzer" unter="Konten und Rollen verwalten" zu="/benutzer" />}

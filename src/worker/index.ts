@@ -3,7 +3,7 @@ import { csrf } from "hono/csrf";
 import { HTTPException } from "hono/http-exception";
 import { secureHeaders } from "hono/secure-headers";
 import { sitzungLesen } from "./auth/sitzung";
-import { schemaSicherstellen } from "./db/migrationen";
+import { EinrichtungLaeuft, schemaSicherstellen } from "./db/migrationen";
 import type { AppEnv } from "./kontext";
 import { ausleihenRouten } from "./routen/ausleihen";
 import { authRouten } from "./routen/auth";
@@ -52,6 +52,9 @@ app.notFound((c) => c.json({ fehler: "Nicht gefunden" }, 404));
 app.onError((err, c) => {
   if (err instanceof HTTPException) {
     return c.json({ fehler: err.message }, err.status);
+  }
+  if (err instanceof EinrichtungLaeuft) {
+    return c.json({ fehler: err.message }, 503, { "retry-after": "1" });
   }
   console.error(err);
   return c.json({ fehler: "Interner Fehler. Bitte erneut versuchen." }, 500);

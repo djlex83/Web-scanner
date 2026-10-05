@@ -1,23 +1,29 @@
-import { ArrowRight, CircleHelp, MapPin, Plus, Warehouse, X } from "lucide-react";
+import { ArrowRight, Box, CircleHelp, MapPin, Plus, SearchCheck, Warehouse, X } from "lucide-react";
 import { Link } from "react-router";
+import type { Stueck } from "../../gemeinsam/typen";
 import { StueckBild } from "../komponenten/kategorie";
+import { datumText, StueckMerkmale } from "../komponenten/StueckMerkmale";
 import { vorWann } from "../lib/format";
-import { Abzeichen, StatusAbzeichen } from "../ui/abzeichen";
+import { nichtMoeglich, schonDort, zielName, type Ziel } from "../lib/ziel";
+import { Abzeichen } from "../ui/abzeichen";
 import { kl } from "../ui/kl";
 import { Skelett } from "../ui/zustand";
 import type { Eintrag } from "./useScanListe";
 
 interface Props {
   eintrag: Eintrag;
-  /** Zielplatz im Einlagern-Modus */
-  zielId?: number | null;
-  zielName?: string;
+  /** Darstellung je Modus: wo liegt es / wohin kommt es / verliehen oder frei */
+  modus?: "suchen" | "einlagern" | "ausleihe";
+  /** Ziel im Einlagern-Modus (null = noch keins) */
+  ziel?: Ziel | null;
   erfassen?: (code: string) => void;
   entfernen?: (code: string) => void;
+  /** Vermisstes Stück als gefunden melden */
+  gefunden?: (s: Stueck) => void;
   neuErfasst?: boolean;
 }
 
-export function TrefferKarte({ eintrag, zielId, zielName, erfassen, entfernen, neuErfasst }: Props) {
+export function TrefferKarte({ eintrag, modus = "suchen", ziel = null, erfassen, entfernen, gefunden, neuErfasst }: Props) {
   const t = eintrag.treffer;
   const rahmen = "anim-ein relative flex items-start gap-3 rounded-2xl border bg-flaeche p-3.5 pr-2 shadow-karte";
 
@@ -94,50 +100,96 @@ export function TrefferKarte({ eintrag, zielId, zielName, erfassen, entfernen, n
   }
 
   const s = t.stueck;
-  const schonDa = zielId != null && s.platz?.id === zielId;
+  const sperre = ziel ? nichtMoeglich(ziel, s) : null;
+  const da = ziel ? schonDort(ziel, s) : false;
   return (
-    <div className={kl(rahmen, neuErfasst ? "border-erfolg/50" : "border-rand")}>
-      <Link to={`/stuecke/${s.id}`} className="flex min-w-0 flex-1 items-start gap-3">
-        <StueckBild stueck={s} className="size-14 rounded-xl" />
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <span className="truncate text-[15px] font-semibold">{s.name}</span>
-            {s.status !== "vorhanden" && <StatusAbzeichen status={s.status} />}
-          </div>
-          <div className="truncate font-mono text-[12px] text-gedaempft">{s.code}</div>
+    <div className={kl(rahmen, s.vermisst_seit ? "border-gefahr/50" : neuErfasst ? "border-erfolg/50" : "border-rand")}>
+      <div className="flex min-w-0 flex-1 flex-col gap-2.5">
+        <Link to={`/stuecke/${s.id}`} className="flex min-w-0 items-start gap-3">
+          <StueckBild stueck={s} className="size-14 rounded-xl" />
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-[15px] font-semibold">{s.name}</div>
+            <div className="truncate font-mono text-[12px] text-gedaempft">{s.code}</div>
+            <StueckMerkmale stueck={s} max={3} mitBehaelter={modus !== "suchen"} className="mt-1.5" />
 
-          {zielId == null ? (
-            <div className="mt-2 flex items-start gap-1.5">
-              <MapPin className={kl("mt-0.5 size-4 shrink-0", s.platz ? "text-primaer-text" : "text-warnung-text")} />
-              <div className="min-w-0">
-                <div className={kl("text-[15px] font-bold leading-snug", !s.platz && "text-warnung-text")}>
-                  {s.platz?.pfad ?? "Kein Platz zugeordnet"}
-                </div>
-                {s.bewegt_am && (
-                  <div className="text-[12px] text-gedaempft">
-                    {vorWann(s.bewegt_am)}
-                    {s.bewegt_von && ` · ${s.bewegt_von}`}
+            {modus === "suchen" && (
+              <div className="mt-2 flex items-start gap-1.5">
+                <MapPin className={kl("mt-0.5 size-4 shrink-0", s.platz ? "text-primaer-text" : "text-warnung-text")} />
+                <div className="min-w-0">
+                  <div className={kl("text-[15px] font-bold leading-snug", !s.platz && "text-warnung-text")}>
+                    {s.platz?.pfad ?? "Kein Platz zugeordnet"}
                   </div>
+                  {s.in_behaelter && (
+                    <div className="flex items-center gap-1 text-[13px] font-semibold text-primaer-text">
+                      <Box className="size-3.5" /> im Behälter „{s.in_behaelter.name}“
+                    </div>
+                  )}
+                  {s.behaelter && (
+                    <div className="text-[13px] font-semibold text-primaer-text">
+                      Behälter mit {s.inhalt} {s.inhalt === 1 ? "Stück" : "Stücken"}
+                    </div>
+                  )}
+                  {s.bewegt_am && (
+                    <div className="text-[12px] text-gedaempft">
+                      {vorWann(s.bewegt_am)}
+                      {s.bewegt_von && ` · ${s.bewegt_von}`}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {modus === "einlagern" && (
+              <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[13px]">
+                {neuErfasst ? (
+                  <Abzeichen ton="erfolg">Neu erfasst</Abzeichen>
+                ) : sperre ? (
+                  <Abzeichen ton="warnung">{sperre}</Abzeichen>
+                ) : da ? (
+                  <Abzeichen ton="neutral">Liegt schon hier</Abzeichen>
+                ) : (
+                  <>
+                    <span className="max-w-[45%] truncate text-gedaempft">
+                      {s.in_behaelter ? s.in_behaelter.name : (s.platz?.pfad ?? "ohne Platz")}
+                    </span>
+                    <ArrowRight className="size-3.5 shrink-0 text-primaer-text" />
+                    <span className="truncate font-semibold text-primaer-text">{ziel ? zielName(ziel) : "Ziel wählen"}</span>
+                  </>
                 )}
               </div>
-            </div>
-          ) : (
-            <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[13px]">
-              {neuErfasst ? (
-                <Abzeichen ton="erfolg">Neu erfasst</Abzeichen>
-              ) : schonDa ? (
-                <Abzeichen ton="neutral">Liegt schon hier</Abzeichen>
-              ) : (
-                <>
-                  <span className="max-w-[45%] truncate text-gedaempft">{s.platz?.pfad ?? "ohne Platz"}</span>
-                  <ArrowRight className="size-3.5 shrink-0 text-primaer-text" />
-                  <span className="truncate font-semibold text-primaer-text">{zielName}</span>
-                </>
-              )}
-            </div>
-          )}
-        </div>
-      </Link>
+            )}
+
+            {modus === "ausleihe" && (
+              <div className="mt-2 text-[13px]">
+                {s.ausleihe ? (
+                  <span className="font-semibold text-warnung-text">
+                    Bei {s.ausleihe.an}
+                    {s.ausleihe.bis && ` bis ${datumText(s.ausleihe.bis)}`} – wird zurückgenommen
+                  </span>
+                ) : s.status === "ausgemustert" ? (
+                  <span className="text-gedaempft">Ausgemustert – kann nicht verliehen werden</span>
+                ) : (
+                  <span className="font-semibold text-erfolg-text">Verfügbar – wird ausgegeben</span>
+                )}
+              </div>
+            )}
+          </div>
+        </Link>
+        {s.vermisst_seit && modus === "suchen" && (
+          <div className="flex items-center gap-3 rounded-xl bg-gefahr-weich px-3 py-2 text-gefahr-text">
+            <span className="min-w-0 flex-1 text-[13px] font-semibold">Wird vermisst – gefunden?</span>
+            {gefunden && (
+              <button
+                type="button"
+                onClick={() => gefunden(s)}
+                className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-lg bg-flaeche px-3 text-sm font-semibold text-text shadow-karte active:scale-95"
+              >
+                <SearchCheck className="size-4" /> Gefunden
+              </button>
+            )}
+          </div>
+        )}
+      </div>
       {weg}
     </div>
   );

@@ -1,7 +1,7 @@
 import { ArrowLeft, Printer } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
-import type { Platz } from "../../gemeinsam/typen";
+import type { Platz, Seite as Liste, Stueck } from "../../gemeinsam/typen";
 import { QrCode } from "../komponenten/QrCode";
 import { EIGEN_GRENZEN, EIGEN_ID, EIGEN_START, VORLAGEN, gestaltung, position, vorlageFinden, type Vorlage } from "../lib/etiketten";
 import { useGespeichert, useLaden } from "../lib/hooks";
@@ -41,7 +41,16 @@ function tipp(v: Vorlage): string {
   return `Tipp: Im Druckdialog Papier ${v.papier.name} und Skalierung 100 % wählen.${v.schnitt ? " Danach entlang der gestrichelten Linien schneiden." : ""}`;
 }
 
-/** Druckansicht für Platz-Etiketten. */
+/** Was auf ein Etikett kommt – Platz oder Behälter. */
+interface EtikettDaten {
+  id: number;
+  code: string;
+  name: string;
+  /** z. B. "Lager › Regal 3" – alles vor dem Namen steht klein darüber */
+  pfad: string;
+}
+
+/** Druckansicht für Etiketten von Plätzen (?ids=…) oder Behältern (?behaelter=…). */
 export default function Etiketten() {
   const [param] = useSearchParams();
   const navigate = useNavigate();
@@ -52,19 +61,27 @@ export default function Etiketten() {
     breite: String(EIGEN_START.breite),
     hoehe: String(EIGEN_START.hoehe),
   });
-  const { daten, fehler } = useLaden<Platz[]>("/plaetze?alle=1");
-  const ids = (param.get("ids") ?? "").split(",").map(Number).filter(Boolean);
+  const behaelter = param.get("behaelter");
+  const { daten: platzDaten, fehler: platzFehler } = useLaden<Platz[]>(behaelter ? null : "/plaetze?alle=1");
+  const { daten: kistenDaten, fehler: kistenFehler } = useLaden<Liste<Stueck>>(
+    behaelter ? `/stuecke?ids=${encodeURIComponent(behaelter)}` : null,
+  );
+  const fehler = platzFehler ?? kistenFehler;
+  const daten: EtikettDaten[] | null = behaelter
+    ? (kistenDaten?.eintraege.map((s) => ({ id: s.id, code: s.code, name: s.name, pfad: s.platz ? `${s.platz.pfad} › ${s.name}` : s.name })) ?? null)
+    : platzDaten;
+  const ids = (param.get(behaelter ? "behaelter" : "ids") ?? "").split(",").map(Number).filter(Boolean);
 
   const plaetze = useMemo(() => {
     const nachId = new Map((daten ?? []).map((p) => [p.id, p]));
-    return ids.map((i) => nachId.get(i)).filter((p): p is Platz => !!p);
+    return ids.map((i) => nachId.get(i)).filter((p): p is EtikettDaten => !!p);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [daten, param]);
+  }, [platzDaten, kistenDaten, param]);
 
   const v = vorlageFinden(vorlageId, { breite: mm(eigen.breite), hoehe: mm(eigen.hoehe) });
   const massstab = useVorschauMassstab(v.papier.breite);
   const proSeite = v.spalten * v.zeilen;
-  const seiten: Platz[][] = [];
+  const seiten: EtikettDaten[][] = [];
   for (let i = 0; i < plaetze.length; i += proSeite) seiten.push(plaetze.slice(i, i + proSeite));
   const eigenFehler = (t: string) => {
     const n = mm(t);
@@ -171,7 +188,7 @@ export default function Etiketten() {
   );
 }
 
-function Etikett({ platz: p, vorlage: v, nummer }: { platz: Platz; vorlage: Vorlage; nummer: number }) {
+function Etikett({ platz: p, vorlage: v, nummer }: { platz: EtikettDaten; vorlage: Vorlage; nummer: number }) {
   const pos = position(v, nummer);
   const g = gestaltung(v, p.name);
   const eltern = p.pfad.includes(" › ") ? p.pfad.slice(0, p.pfad.lastIndexOf(" › ")) : "";

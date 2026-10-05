@@ -35,6 +35,7 @@ export function BewegungsZeile({ b, ohneStueck, exakt }: { b: Buchung; ohneStuec
         </div>
         <div className="mt-0.5 text-[12px] text-gedaempft">
           {b.benutzer}
+          {b.mitgefuehrt && " · mit Behälter"}
           {b.notiz && ` · „${b.notiz}“`}
         </div>
       </div>

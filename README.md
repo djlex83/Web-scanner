@@ -18,6 +18,10 @@ Web-App für Handy, Tablet und PC. Läuft im **kostenlosen Tarif von Cloudflare*
   - [4. Scannen: „Wo ist …?“ und „Einlagern“](#4-scannen-wo-ist--und-einlagern)
   - [5. Bestand und Protokoll](#5-bestand-und-protokoll)
   - [6. Benutzer verwalten](#6-benutzer-verwalten)
+- [Inventur](#inventur)
+- [Ausleihen und Rückgängig](#ausleihen-und-rückgängig)
+- [Prüfung und Wartung](#prüfung-und-wartung)
+- [Behälter und Vermisst](#behälter-und-vermisst)
 - [Fotos und Kategorie-Symbole](#fotos-und-kategorie-symbole)
 - [Passwort ändern oder vergessen](#passwort-ändern-oder-vergessen)
 - [Rollen](#rollen)
@@ -40,8 +44,15 @@ Web-App für Handy, Tablet und PC. Läuft im **kostenlosen Tarif von Cloudflare*
 | 📸 **Fotos** | Foto beim Erfassen oder später aufnehmen – wird automatisch verkleinert und als Vorschaubild überall angezeigt. |
 | 🎨 **Kategorie-Symbole** | Jede Kategorie bekommt automatisch ein passendes Symbol und eine Farbe; die Leitung kann beides ändern. |
 | ➕ **Direkt erfassen** | Unbekannter Code? Name eingeben – das Stück liegt sofort im gescannten Regal. |
-| 🏷️ **QR-Etiketten** | Für Regale und Abteilungen, auf A4-Bögen (21 oder 8 pro Seite). |
-| 🔎 **Bestand** | Suche nach Name, Code, Kategorie; Filter „ohne Platz“, „defekt“, „ausgemustert“. |
+| 🏷️ **QR-Etiketten** | Für Regale, Abteilungen und Behälter: A4-Etikettenbögen (21, 14 oder 8), Schilder A4/A5/A6 oder Etikettendrucker in eigener Größe. |
+| 🔎 **Bestand** | Suche nach Name, Code, Kategorie; Filter z. B. „ohne Platz“, „vermisst“, „verliehen“, „Prüfung fällig“, „Behälter“. |
+| 📊 **Export für Excel** | Bestand (gefiltert) oder Inhalt eines Regals als CSV – mit Platz, Ausleihe, Prüftermin. |
+| 📋 **Inventur je Regal** | Regal wählen, alles scannen → sofort sehen, was fehlt und was zusätzlich da ist. Je Stück einstellbar, ob es gezählt wird. |
+| 🤝 **Ausleihen** | Stücke an Personen ausgeben, mit Rückgabedatum. Überfällige rot, Rückgabe per Scan. |
+| ↩️ **Rückgängig** | Nach jeder Buchung ein Knopf „Rückgängig“ – als Gegenbuchung, nichts wird gelöscht. |
+| 🔧 **Prüfung & Wartung** | Prüfart, Intervall und nächster Termin je Stück; Liste aller fälligen Prüfungen, Hinweis beim Scannen. |
+| 📦 **Behälter** | Kisten und Koffer mit eigenem Code. Kiste umbuchen = alles darin wandert mit. |
+| 🔍 **Vermisst** | Stück als vermisst melden – wer es irgendwo scannt, bekommt sofort einen Hinweis. |
 | 🕓 **Protokoll** | Jede Bewegung und Änderung – wer, was, wann, von wo nach wo. Unveränderbar. Export als CSV für Excel. |
 | 👥 **Konten & Rollen** | Leser · Mitarbeiter · Leitung · Admin. Startpasswort muss geändert werden, Sperre nach 5 Fehlversuchen. |
 | 🌗 **Hell / Dunkel** | Automatisch nach Gerät oder fest eingestellt. Große Knöpfe – auch mit Handschuhen bedienbar. |
@@ -65,7 +76,7 @@ Unter **Plätze** legst du Abteilungen an (z. B. Montage, Lager) und darin die R
 
 ### 3. Etiketten drucken
 
-Pro Abteilung oder für einzelne Regale: **Etiketten drucken** öffnet eine Druckansicht für A4-Etikettenbögen. Ausdrucken, ans Regal kleben – fertig.
+Pro Abteilung oder für einzelne Regale: **Etiketten drucken** öffnet eine Druckansicht. Zur Wahl stehen A4-Etikettenbögen (21, 14 oder 8 pro Bogen), Schilder auf normalem Papier (4 × A6 oder 2 × A5 auf A4 zum Ausschneiden, A4/A5/A6 quer) und **Etikettendrucker** mit eigener Größe (z. B. 62 × 29 mm). Ausdrucken, ans Regal kleben – fertig. Behälter haben auf ihrer Seite einen eigenen Knopf „Etikett“.
 
 ![Druckansicht für QR-Etiketten](docs/bilder/etiketten.png)
 
@@ -90,6 +101,50 @@ Im **Bestand** findest du jedes Stück über die Suche oder die Filter. Das **Pr
 Admins legen unter **Benutzer** neue Konten an und vergeben die Rolle. Die App erzeugt ein **Startpasswort**, das beim ersten Anmelden geändert werden muss. Benutzer werden nie gelöscht, nur gesperrt – damit das Protokoll vollständig bleibt.
 
 ![Benutzer angelegt mit Startpasswort](docs/bilder/benutzer.png)
+
+---
+
+## Inventur
+
+Unter **Inventur** (oder auf der Seite eines Regals) das Regal wählen und alles scannen, was wirklich dort liegt. Die App vergleicht live mit dem Bestand:
+
+- ✅ **gefunden** – liegt da, wo es eingetragen ist
+- ❌ **fehlt noch** – laut System hier, aber nicht gescannt
+- ➕ **zusätzlich** – liegt hier, ist aber woanders eingetragen
+- 🤝 **verliehen** – fehlt, ist aber ausgeliehen (zählt nicht als fehlend)
+
+Ein gescannter **Behälter zählt mit seinem Inhalt**. Beim Abschließen entscheidest du, ob Zusätzliches hierher gebucht und Fehlendes als vermisst gemeldet wird. Das Ergebnis steht unveränderbar im Protokoll. Gescannte Codes bleiben gespeichert, auch wenn die Seite zwischendurch geschlossen wird.
+
+**Inventurpflicht je Stück:** Beim Erfassen und unter *Bearbeiten* lässt sich für jedes Stück einstellen, ob es **bei der Inventur gezählt** wird (z. B. aus für Verbrauchsmaterial). Der Bestandsfilter „Ohne Inventur“ zeigt alle Ausnahmen.
+
+![Inventur: zählen, abschließen, Ergebnis](docs/bilder/inventur.png)
+
+## Ausleihen und Rückgängig
+
+- **Ausgeben:** *Scannen → Ausleihe*, Stücke scannen, „ausgeben“, Name und Rückgabedatum eintragen (1 Woche, 2 Wochen, 1 Monat oder frei). Geht auch auf der Seite eines Stücks.
+- **Zurücknehmen:** dieselben Stücke in *Ausleihe* scannen → „zurück“. Wird ein verliehenes Stück irgendwo eingelagert, gilt es automatisch als zurückgegeben.
+- **Ausleihen** zeigt, wer was hat – überfällige Rückgaben zuerst und rot, dazu der Verlauf.
+- **Rückgängig:** Nach jeder Buchung erscheint kurz ein Knopf „Rückgängig“; die letzte eigene Bewegung lässt sich auch auf der Seite des Stücks zurücknehmen. Das geht 15 Minuten lang für eigene Buchungen (Leitung: jederzeit) und wird als Gegenbuchung protokolliert. Inzwischen weiterbewegte Stücke bleiben, wo sie sind.
+
+![Ausleihe, Liste der Ausleihen, Rückgängig](docs/bilder/ausleihe.png)
+
+## Prüfung und Wartung
+
+Unter *Stück → Bearbeiten → Prüfung und Wartung* die Art (z. B. Elektroprüfung DGUV V3, Kalibrierung), das **Intervall** und den **nächsten Termin** eintragen. Danach:
+
+- **Prüfung eintragen** mit Datum, Ergebnis (bestanden / mit Mängeln / nicht bestanden) und Notiz – der nächste Termin wird aus dem Intervall berechnet. „Nicht bestanden“ markiert das Stück als defekt.
+- **Prüfungen** listet alle Termine: überfällig, in den nächsten 30 Tagen, später. Die Startseite und jeder Scan zeigen „Prüfung überfällig“ bzw. „Prüfung bald“.
+- Alle Prüfnachweise bleiben unveränderbar am Stück gespeichert.
+
+![Prüfung überfällig, eintragen, Übersicht](docs/bilder/pruefung.png)
+
+## Behälter und Vermisst
+
+- **Behälter** (Kiste, Koffer, Box): ein Stück mit dem Schalter „Ist ein Behälter“ – oder unter *Bestand → Behälter* neu anlegen, dann vergibt die App einen Code (`KISTE-…`) zum Ausdrucken. Zum **Befüllen** im Einlagern-Modus zuerst den Behälter scannen, dann die Stücke. Wird der Behälter umgebucht, wandert der ganze Inhalt mit.
+- **Vermisst:** Auf der Seite eines Stücks „Vermisst“ tippen. Wer das Stück irgendwo scannt, sieht sofort „Wird vermisst – gefunden?“. Einlagern oder „Gefunden“ hebt die Meldung auf.
+- **Zu erledigen:** Die Startseite zeigt Vermisstes, überfällige Rückgaben und fällige Prüfungen auf einen Blick.
+
+![Behälter befüllen, vermisstes Stück gefunden, Startseite](docs/bilder/behaelter.png)
 
 ---
 
@@ -151,8 +206,8 @@ Falls kein Admin mehr hineinkommt, kann man auf der Anmeldeseite über **„Admi
 | Rolle | Darf |
 |---|---|
 | **Leser** | scannen, nachsehen wo etwas ist, Verlauf ansehen |
-| **Mitarbeiter** | + einlagern, umbuchen, neue Stücke erfassen, Fotos aufnehmen; eigenes Protokoll |
-| **Leitung** | + Abteilungen/Regale anlegen, Etiketten drucken, Stücke bearbeiten/ausmustern, Fotos entfernen, Kategorie-Symbole festlegen, komplettes Protokoll + Export |
+| **Mitarbeiter** | + einlagern, umbuchen, neue Stücke und Behälter erfassen, Fotos aufnehmen, ausleihen/zurücknehmen, Inventur, Prüfungen eintragen, vermisst melden, eigene Buchungen rückgängig machen; eigenes Protokoll |
+| **Leitung** | + Abteilungen/Regale anlegen, Etiketten drucken, Stücke bearbeiten/ausmustern, Prüfpläne und Inventurpflicht festlegen, Fotos entfernen, Kategorie-Symbole festlegen, alle Buchungen rückgängig machen, komplettes Protokoll + Export |
 | **Admin** | + Benutzer anlegen, Rollen vergeben, sperren, Passwort zurücksetzen, Datensicherung |
 
 Die Rechte werden bei **jeder Anfrage auf dem Server** geprüft – nicht nur in der Oberfläche.

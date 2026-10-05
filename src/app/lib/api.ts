@@ -15,7 +15,7 @@ export function beiSitzungsende(fn: Abmelden) {
   beiAbmeldung = fn;
 }
 
-export async function api<T>(pfad: string, optionen: { methode?: string; daten?: unknown } = {}): Promise<T> {
+export async function api<T>(pfad: string, optionen: { methode?: string; daten?: unknown } = {}, versuch = 0): Promise<T> {
   let res: Response;
   const formular = optionen.daten instanceof FormData;
   try {
@@ -27,6 +27,11 @@ export async function api<T>(pfad: string, optionen: { methode?: string; daten?:
     });
   } catch {
     throw new ApiFehler(0, "Keine Verbindung. Bitte Netz prüfen und erneut versuchen.");
+  }
+  // Neue Datenbank wird schrittweise eingerichtet: kurz warten und erneut versuchen
+  if (res.status === 503 && res.headers.has("retry-after") && versuch < 4) {
+    await new Promise((r) => setTimeout(r, 400));
+    return api<T>(pfad, optionen, versuch + 1);
   }
   const json = res.headers.get("content-type")?.includes("json") ? await res.json() : null;
   if (!res.ok) {

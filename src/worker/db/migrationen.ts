@@ -218,10 +218,21 @@ async function aktuelleVersion(db: D1Database): Promise<number> {
   return zeile?.v ?? 0;
 }
 
+/** D1 im kostenlosen Tarif: höchstens 50 Abfragen je Aufruf – Platz für die eigentliche Anfrage lassen. */
+const MAX_JE_AUFRUF = 35;
+
+export class EinrichtungLaeuft extends Error {}
+
 async function migrieren(db: D1Database): Promise<void> {
   const version = await aktuelleVersion(db);
+  let anzahl = 0;
   for (const m of MIGRATIONEN) {
     if (m.version <= version) continue;
+    // Viele Migrationen auf einmal (neue Datenbank): auf mehrere Aufrufe verteilen
+    if (anzahl > 0 && anzahl + m.sql.length > MAX_JE_AUFRUF) {
+      throw new EinrichtungLaeuft("Datenbank wird eingerichtet – bitte die Seite neu laden.");
+    }
+    anzahl += m.sql.length + 1;
     try {
       // batch = eine Transaktion: entweder ganz oder gar nicht
       await db.batch([

@@ -242,3 +242,20 @@ describe("Bestand exportieren", () => {
     expect((verliehen.daten as string).trim().split("\r\n")).toHaveLength(2);
   });
 });
+
+describe("Einrichtung einer neuen Datenbank", () => {
+  it("verteilt viele Migrationen auf mehrere Aufrufe", async () => {
+    const { schemaVergessen } = await import("../src/worker/db/migrationen");
+    const { Client } = await import("./hilfen");
+    const { results } = await env.DB.prepare(
+      "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%'",
+    ).all<{ name: string }>();
+    for (const r of results) await env.DB.prepare(`DROP TABLE IF EXISTS "${r.name}"`).run();
+    schemaVergessen();
+    const gast = new Client();
+    const erster = await gast.get("/auth/einrichten");
+    expect(erster.status).toBe(503);
+    expect(erster.daten.fehler).toContain("neu laden");
+    expect((await gast.get("/auth/einrichten")).daten).toEqual({ noetig: true });
+  });
+});
