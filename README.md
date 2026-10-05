@@ -4,7 +4,9 @@
 
 Web-App für Handy, Tablet und PC. Läuft im **kostenlosen Tarif von Cloudflare**, braucht keine Installation aus dem App-Store und funktioniert auf iPhone, Android und am PC gleich. Jede Person hat ein **eigenes Konto**, jede Bewegung landet in einem **Protokoll, das sich nicht ändern lässt**.
 
-![Start, Einlagern und Stück-Ansicht am Handy](docs/bilder/uebersicht.png)
+Dazu: **Inventur je Regal**, **Ausleihen** mit Rückgabedatum, **Aufräumen** (jedes Stück zurück an seinen Stammplatz), **Prüf- und Wartungstermine**, **Behälter**, **Vermisst-Meldungen**, **Rückgängig** nach jeder Buchung und **Export für Excel**.
+
+![Start mit „Zu erledigen“, Einlagern und Stück-Ansicht am Handy](docs/bilder/uebersicht.png)
 
 ---
 
@@ -15,7 +17,7 @@ Web-App für Handy, Tablet und PC. Läuft im **kostenlosen Tarif von Cloudflare*
   - [1. Einrichten und anmelden](#1-einrichten-und-anmelden)
   - [2. Abteilungen und Regale anlegen](#2-abteilungen-und-regale-anlegen)
   - [3. Etiketten drucken](#3-etiketten-drucken)
-  - [4. Scannen: „Wo ist …?“ und „Einlagern“](#4-scannen-wo-ist--und-einlagern)
+  - [4. Scannen: vier Modi](#4-scannen-vier-modi)
   - [5. Bestand und Protokoll](#5-bestand-und-protokoll)
   - [6. Benutzer verwalten](#6-benutzer-verwalten)
 - [Inventur](#inventur)
@@ -27,7 +29,7 @@ Web-App für Handy, Tablet und PC. Läuft im **kostenlosen Tarif von Cloudflare*
 - [Passwort ändern oder vergessen](#passwort-ändern-oder-vergessen)
 - [Rollen](#rollen)
 - [Am PC](#am-pc)
-- [Hell und dunkel](#hell-und-dunkel)
+- [Hell, dunkel und Animationen](#hell-dunkel-und-animationen)
 - [Auf Cloudflare veröffentlichen (kostenlos)](#auf-cloudflare-veröffentlichen-kostenlos) · [ausführliche Anleitung](docs/cloudflare-einrichten.md)
 - [Entwicklung](#entwicklung)
 
@@ -41,23 +43,24 @@ Web-App für Handy, Tablet und PC. Läuft im **kostenlosen Tarif von Cloudflare*
 | 🖼️ **Foto auswerten** | Ein Foto mit vielen Etiketten → alle Codes auf einmal. |
 | ⌨️ **Handscanner & Eintippen** | USB-/Bluetooth-Handscanner und manuelle Eingabe funktionieren genauso. |
 | 📍 **„Wo ist …?“** | Zu jedem gescannten Stück: Abteilung › Regal, wann und von wem zuletzt bewegt. |
-| 📦 **Einlagern / Umbuchen** | Regal-Etikett scannen → Stücke scannen → ein Tipp. Alles oder nichts. |
+| 📦 **Einlagern / Umbuchen** | Regal- oder Behälter-Etikett scannen → Stücke scannen → ein Tipp. Alles oder nichts. |
 | 📸 **Fotos** | Foto beim Erfassen oder später aufnehmen – wird automatisch verkleinert und als Vorschaubild überall angezeigt. |
 | 🎨 **Kategorie-Symbole** | Jede Kategorie bekommt automatisch ein passendes Symbol und eine Farbe; die Leitung kann beides ändern. |
 | ➕ **Direkt erfassen** | Unbekannter Code? Name eingeben – das Stück liegt sofort im gescannten Regal. |
 | 🏷️ **QR-Etiketten** | Für Regale, Abteilungen und Behälter: A4-Etikettenbögen (21, 14 oder 8), Schilder A4/A5/A6 oder Etikettendrucker in eigener Größe. |
 | 🔎 **Bestand** | Suche nach Name, Code, Kategorie; Filter z. B. „ohne Platz“, „vermisst“, „verliehen“, „Prüfung fällig“, „Behälter“. |
-| 📊 **Export für Excel** | Bestand (gefiltert) oder Inhalt eines Regals als CSV – mit Platz, Ausleihe, Prüftermin. |
+| 📊 **Export für Excel** | Bestand (gefiltert) oder Inhalt eines Regals als CSV – mit Platz, Stammplatz, Ausleihe, Prüftermin. |
 | 📋 **Inventur je Regal** | Regal wählen, alles scannen → sofort sehen, was fehlt und was zusätzlich da ist. Je Stück einstellbar, ob es gezählt wird. |
 | 🤝 **Ausleihen** | Stücke an Personen ausgeben, mit Rückgabedatum. Überfällige rot, Rückgabe per Scan. |
-| ↩️ **Rückgängig** | Nach jeder Buchung ein Knopf „Rückgängig“ – als Gegenbuchung, nichts wird gelöscht. |
-| 🔧 **Prüfung & Wartung** | Prüfart, Intervall und nächster Termin je Stück; Liste aller fälligen Prüfungen, Hinweis beim Scannen. |
+| ↩️ **Rückgängig** | Nach jeder Buchung ein Knopf „Rückgängig“ (mit Countdown) – als Gegenbuchung, nichts wird gelöscht. |
+| 🔧 **Prüfung & Wartung** | Prüfart, Intervall und nächster Termin je Stück; nächste Prüfung automatisch **+1 Jahr**; Liste aller fälligen Prüfungen, Hinweis beim Scannen; Löschen ab Leitung. |
 | 📦 **Behälter** | Kisten und Koffer mit eigenem Code. Kiste umbuchen = alles darin wandert mit. |
-| 🏠 **Aufräumen** | Alles scannen, was herumliegt – mit einem Tipp kommt jedes Stück zurück an seinen eigenen Stammplatz. |
+| 🏠 **Stammplatz & Aufräumen** | Jedes Stück weiß, wo es hingehört. Alles scannen, was herumliegt – mit einem Tipp kommt jedes zurück an seinen eigenen Platz. |
 | 🔍 **Vermisst** | Stück als vermisst melden – wer es irgendwo scannt, bekommt sofort einen Hinweis. |
 | 🕓 **Protokoll** | Jede Bewegung und Änderung – wer, was, wann, von wo nach wo. Unveränderbar. Export als CSV für Excel. |
 | 👥 **Konten & Rollen** | Leser · Mitarbeiter · Leitung · Admin. Startpasswort muss geändert werden, Sperre nach 5 Fehlversuchen. |
 | 🌗 **Hell / Dunkel** | Automatisch nach Gerät oder fest eingestellt. Große Knöpfe – auch mit Handschuhen bedienbar. |
+| ✨ **Animationen** | Kleine, schnelle Bewegungen (Scan-Laser, Erfolgs-Haken, hochzählende Zahlen) – reines CSS/SVG, aus bei „Bewegung reduzieren“. |
 | 📱 **Als App installierbar** | „Zum Startbildschirm hinzufügen“ – startet dann wie eine normale App. |
 
 ---
@@ -84,17 +87,24 @@ Pro Abteilung oder für einzelne Regale: **Etiketten drucken** öffnet eine Druc
 
 > Tipp: Im Druckdialog „Tatsächliche Größe“ bzw. Skalierung 100 % wählen und Ränder auf „Keine“ stellen.
 
-### 4. Scannen: „Wo ist …?“ und „Einlagern“
+### 4. Scannen: vier Modi
 
-- **Wo ist …?** – Codes scannen, auch mehrere auf einmal. Zu jedem Stück steht groß, wo es liegt.
-- **Einlagern** – zuerst das **Regal-Etikett** scannen, dann alle Stücke, die hinein sollen. Ein Tipp auf „Einlagern“ bucht alle zusammen.
-- **Unbekannter Code** – „Neu erfassen“, Namen eingeben, fertig. Das Stück liegt gleich im gescannten Regal.
+Oben auf der Scan-Seite wählst du, was du tun willst:
+
+| Modus | So geht’s |
+|---|---|
+| 🔍 **Wo ist?** | Codes scannen, auch mehrere auf einmal. Zu jedem Stück steht groß, wo es liegt – und „gehört nach …“, wenn es nicht an seinem Stammplatz ist. |
+| ⇄ **Einlagern** | Zuerst das **Regal-Etikett** oder einen **Behälter** scannen (oder „Ziel wählen“), dann alle Stücke, die hinein sollen. Ein Tipp bucht alle zusammen. Optional „Als neuen Stammplatz festlegen“. |
+| 🏠 **Aufräumen** | Alles scannen, was herumliegt – jedes Stück kommt an seinen eigenen Stammplatz zurück ([mehr](#stammplatz-und-aufräumen)). |
+| 🤝 **Ausleihe** | Freie Stücke an eine Person ausgeben, verliehene zurücknehmen ([mehr](#ausleihen-und-rückgängig)). |
+
+**Unbekannter Code:** „Neu erfassen“, Namen eingeben, fertig – das Stück liegt gleich im gescannten Regal oder Behälter. Die Knopfleiste unten erscheint erst, wenn etwas gescannt ist, und verdeckt nie die Liste.
 
 ![Wo ist, Einlagern, neues Stück erfassen](docs/bilder/scannen.png)
 
 ### 5. Bestand und Protokoll
 
-Im **Bestand** findest du jedes Stück über die Suche oder die Filter. Das **Protokoll** zeigt lückenlos, wer was wann wohin gebracht hat – nach Zeitraum und Person filterbar und als **CSV für Excel** exportierbar. Einträge im Protokoll können nicht geändert oder gelöscht werden.
+Im **Bestand** findest du jedes Stück über die Suche oder die Filter (ohne Platz, nicht am Stammplatz, vermisst, verliehen, Prüfung fällig, defekt, Behälter, ohne Inventur, ausgemustert). **Export** lädt die aktuelle Auswahl als CSV für Excel herunter. Das **Protokoll** zeigt lückenlos, wer was wann wohin gebracht hat – nach Zeitraum und Person filterbar und als **CSV für Excel** exportierbar. Einträge im Protokoll können nicht geändert oder gelöscht werden.
 
 ![Bestand und Protokoll](docs/bilder/bestand.png)
 
@@ -139,6 +149,8 @@ Jedes Stück hat einen **Stammplatz** – den Platz (oder Behälter), wo es hing
 - **Aufräumen:** *Scannen → Aufräumen*, alles scannen, was herumliegt. Jedes Stück zeigt „Werkbank → Regal 2“. Ein Tipp auf **„… zurückräumen“** bucht alle auf einmal an ihren jeweiligen Stammplatz – in einem Vorgang, mit „Rückgängig“. Liegt der Stammplatz in einem Behälter, kommt das Stück zurück in den Behälter, egal wo dieser gerade steht.
 - Die Startseite und der Bestandsfilter **„Nicht am Stammplatz“** zeigen, was gerade woanders liegt. Einzelne Stücke lassen sich auch auf ihrer Seite mit „Zurück an den Stammplatz“ zurückbuchen.
 
+![Startseite meldet Stücke am falschen Platz, Aufräumen, alles zurück](docs/bilder/aufraeumen.png)
+
 ## Prüfung und Wartung
 
 Unter *Stück → Bearbeiten → Prüfung und Wartung* die Art (z. B. Elektroprüfung DGUV V3, Kalibrierung), das **Intervall** und den **nächsten Termin** eintragen. Danach:
@@ -148,15 +160,15 @@ Unter *Stück → Bearbeiten → Prüfung und Wartung* die Art (z. B. Elektropr�
 - **Prüfungen** listet alle Termine: überfällig, in den nächsten 30 Tagen, später. Die Startseite und jeder Scan zeigen „Prüfung überfällig“ bzw. „Prüfung bald“.
 - Prüfnachweise selbst sind unveränderbar – gelöschte werden nur ausgeblendet, nie entfernt.
 
-![Prüfung überfällig, eintragen, Übersicht](docs/bilder/pruefung.png)
+![Prüfung überfällig, eintragen mit Termin in einem Jahr, löschen](docs/bilder/pruefung.png)
 
 ## Behälter und Vermisst
 
 - **Behälter** (Kiste, Koffer, Box): ein Stück mit dem Schalter „Ist ein Behälter“ – oder unter *Bestand → Behälter* neu anlegen, dann vergibt die App einen Code (`KISTE-…`) zum Ausdrucken. Zum **Befüllen** im Einlagern-Modus zuerst den Behälter scannen, dann die Stücke. Wird der Behälter umgebucht, wandert der ganze Inhalt mit.
 - **Vermisst:** Auf der Seite eines Stücks „Vermisst“ tippen. Wer das Stück irgendwo scannt, sieht sofort „Wird vermisst – gefunden?“. Einlagern oder „Gefunden“ hebt die Meldung auf.
-- **Zu erledigen:** Die Startseite zeigt Vermisstes, überfällige Rückgaben und fällige Prüfungen auf einen Blick.
+- **Zu erledigen:** Die Startseite zeigt Vermisstes, überfällige Rückgaben, fällige Prüfungen und Stücke außerhalb ihres Stammplatzes auf einen Blick.
 
-![Behälter befüllen, vermisstes Stück gefunden, Startseite](docs/bilder/behaelter.png)
+![Behälter befüllen, Behälter mit Inhalt, vermisstes Stück gefunden](docs/bilder/behaelter.png)
 
 ---
 
@@ -236,11 +248,13 @@ Am großen Bildschirm gibt es eine Seitenleiste statt der unteren Leiste. Ein US
 
 ---
 
-## Hell und dunkel
+## Hell, dunkel und Animationen
 
 Unter **Mein Konto** wählbar: automatisch (nach Geräteeinstellung), hell oder dunkel.
 
 ![Dunkler Modus](docs/bilder/dunkel.png)
+
+**Animationen:** Kleine Bewegungen helfen beim Verstehen, ohne aufzuhalten – ein Strichcode mit Laser beim Laden, ein Haken, der sich nach dem Einlagern zeichnet, hochzählende Zahlen auf der Startseite, ein Countdown-Balken bei „Rückgängig“ und ein Glanz, wenn bei der Inventur alles gefunden ist. Alles ist reines CSS/SVG ohne zusätzliche Bibliothek (wenige KB) und läuft auch auf älteren Handys flüssig. Wer in den Geräteeinstellungen **„Bewegung reduzieren“** eingeschaltet hat, bekommt alles ruhig angezeigt.
 
 ---
 
@@ -257,7 +271,9 @@ Kurzfassung:
 5. Die Adresse (`https://web-scanner.<name>.workers.dev`) **sofort** öffnen und das **erste Admin-Konto** anlegen.
 6. Den [Notfall-Code](#notfall-code-für-den-admin-zugang) als Geheimnis `NOTFALL_CODE` hinterlegen.
 
-Danach wird jeder Push auf `main` automatisch veröffentlicht.
+Danach wird jeder Push auf `main` automatisch veröffentlicht. Die Datenbank richtet sich beim ersten Aufruf **selbst ein** und bringt sich bei Updates selbst auf den neuen Stand (bei einer ganz neuen Datenbank in mehreren kleinen Schritten – die App wiederholt automatisch).
+
+> **Wichtig:** Sind bei Cloudflare die Builds für andere Branches eingeschaltet und steht dort ebenfalls `npx wrangler deploy`, geht **jeder Branch sofort live** – auch Änderungen, die noch nicht fertig geprüft sind. Unter *Workers → web-scanner → Einstellungen → Build* beim **„Non-production branch deploy command“** `npx wrangler versions upload` eintragen (dann bekommt ein Branch nur eine eigene Vorschau-Adresse) oder die Branch-Builds abschalten.
 
 **Kostenloser Tarif:** 100 000 Anfragen pro Tag, Datenbank bis 5 GB – reicht für viele Tausend Stücke und Dutzende Benutzer. Passwörter werden mit 20 000 PBKDF2-Runden gehasht, damit das Anmelden in die 10 ms Rechenzeit pro Anfrage passt; im bezahlten Tarif `PBKDF2_RUNDEN` in `wrangler.jsonc` auf `100000` setzen.
 
@@ -270,7 +286,7 @@ Danach wird jeder Push auf `main` automatisch veröffentlicht.
 ```bash
 npm install
 npm run dev        # http://localhost:5173 – App + Server + lokale Datenbank
-npm test           # API-Tests im echten Workers-Laufzeitsystem
+npm test           # 42 API-Tests im echten Workers-Laufzeitsystem
 npm run build      # Typprüfung + Bauen
 ```
 
@@ -280,12 +296,21 @@ Die Kamera braucht HTTPS – auf `localhost` geht es auch ohne. Am Handy am einf
 
 ```
 src/
-├─ worker/        Server (Cloudflare Worker, Hono): Anmeldung, Rollen, API, Datenbankschema
-├─ app/           Oberfläche (React, Tailwind): seiten/, scanner/, komponenten/, ui/ (Design-System)
-└─ gemeinsam/     Rollen/Rechte, Prüfregeln, Typen – von Server und Oberfläche genutzt
-tests/            API-Tests
-docs/             Plan, Design-System, Bilder
+├─ worker/
+│  ├─ routen/     API je Bereich (stuecke, buchungen, plaetze, ausleihen, inventur, pruefungen, vermisst, …)
+│  ├─ db/         migrationen.ts (Schema, spielt sich selbst ein), abfragen.ts, bewegen.ts (Umbuchen inkl. Behälter)
+│  └─ auth/       Passwörter, Sitzungen, Drossel
+├─ app/
+│  ├─ seiten/     eine Datei je Seite (Scannen, Inventur, Ausleihen, Prüfungen, …)
+│  ├─ scanner/    Kamera, Handscanner, Trefferkarten
+│  ├─ komponenten/ Blätter und Bausteine (Erfassen, Ausleihe, Prüfung, Stammplatz, …)
+│  └─ ui/         Design-System inkl. bewegung.tsx (Motion Graphics)
+└─ gemeinsam/     Rollen/Rechte, Prüfregeln (zod), Typen, Datumsrechnung – Server und Oberfläche
+tests/            API-Tests (api.test.ts, funktionen.test.ts) + Etiketten-Berechnung
+docs/             Plan, Design-System, Cloudflare-Anleitung, Bilder
 ```
+
+**Grundsätze:** Buchungen, Protokoll, Prüfnachweise und Inventuren sind per Datenbank-Trigger unveränderbar; Korrekturen laufen als Gegenbuchung. Mehrfach-Buchungen arbeiten mit einer JSON-Liste (`json_each`), damit auch 300 Stücke in wenige Datenbankbefehle passen (Limit im kostenlosen Tarif: 50 je Aufruf). Neue Schemaänderungen immer als **neue** Migration anhängen.
 
 Weitere Doku:
 - [docs/cloudflare-einrichten.md](docs/cloudflare-einrichten.md) – Einrichtung auf Cloudflare, Schritt für Schritt

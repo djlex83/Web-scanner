@@ -384,3 +384,17 @@ describe("Prüfung: 1 Jahr Standard und Löschen", () => {
     await expect(env.DB.prepare("DELETE FROM pruefungen").run()).rejects.toThrow(/unveraenderbar/);
   });
 });
+
+describe("Teilweise ändern", () => {
+  it("nicht mitgeschickte Felder bleiben erhalten, leere werden gelöscht", async () => {
+    const { admin, r1, ids } = await aufbau();
+    await admin.patch(`/stuecke/${ids["A-1"]}`, { kategorie: "Werkzeug", beschreibung: "mit Koffer", pruef_art: "Elektroprüfung" });
+    const nurTermin = await admin.patch(`/stuecke/${ids["A-1"]}`, { pruef_naechste: "2027-01-01" });
+    expect(nurTermin.daten).toMatchObject({ kategorie: "Werkzeug", beschreibung: "mit Koffer", pruefung: { art: "Elektroprüfung", naechste: "2027-01-01" } });
+    const leer = await admin.patch(`/stuecke/${ids["A-1"]}`, { beschreibung: "" });
+    expect(leer.daten).toMatchObject({ kategorie: "Werkzeug", beschreibung: null });
+
+    await admin.patch(`/plaetze/${r1.id}`, { notiz: "hinten links" });
+    expect((await admin.patch(`/plaetze/${r1.id}`, { name: "Regal Eins" })).daten).toMatchObject({ name: "Regal Eins", notiz: "hinten links" });
+  });
+});

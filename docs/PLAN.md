@@ -142,7 +142,7 @@ Secrets (Cloudflare-API-Token, Account-ID) liegen nur in GitHub-Secrets bzw. Clo
 | **6 Absicherung** | Sicherung (Time Travel + JSON-Download), Wiederherstellungstest | Wiederherstellung einmal erfolgreich geprobt | teilweise: Download da, Wiederherstellung noch nicht geprobt |
 | **7 Erweiterungen** | ausgewählte Ideen aus Abschnitt 10 | nach Auswahl | offen |
 
-**Umgesetzt aus der Ideenliste:** Foto vom Regal (alle Codes auf einmal), Suche ohne Scan, Startseite mit Zahlen, Status „defekt“, **Fotos zu Stücken** (in D1 statt R2, damit nichts extra eingerichtet werden muss), **Kategorie-Symbole und -Farben**, **Notfall-Code** für den Admin-Zugang, **Inventur je Regal** (mit Inventurpflicht je Stück), **Ausleihen** mit Rückgabedatum, **Rückgängig** (Gegenbuchung), **Prüf- und Wartungstermine**, **Behälter**, **Vermisst-Liste**, **Bestand-Export** als CSV.
+**Umgesetzt aus der Ideenliste:** Foto vom Regal (alle Codes auf einmal), Suche ohne Scan, Startseite mit Zahlen, Status „defekt“, **Fotos zu Stücken** (in D1 statt R2, damit nichts extra eingerichtet werden muss), **Kategorie-Symbole und -Farben**, **Notfall-Code** für den Admin-Zugang, **Inventur je Regal** (mit Inventurpflicht je Stück), **Ausleihen** mit Rückgabedatum, **Rückgängig** (Gegenbuchung), **Prüf- und Wartungstermine**, **Behälter**, **Vermisst-Liste**, **Bestand-Export** als CSV, **Stammplatz und Aufräumen** (alles scannen, jedes Stück zurück an seinen Platz), Prüfungen mit **+1 Jahr** als Standard und **Löschen ab Leitung**, **Etiketten-Formate** (Bögen, Schilder, Etikettendrucker), **Motion Graphics**.
 
 ## 10. Weitere Ideen (zur Auswahl)
 

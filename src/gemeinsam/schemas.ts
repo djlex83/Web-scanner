@@ -11,6 +11,14 @@ const optText = (max: number) =>
     .max(max)
     .nullish()
     .transform((v) => (v ? v : null));
+/** Für Änderungen (PATCH): weggelassen bleibt weggelassen (= unverändert), leer wird null (= löschen). */
+const aendText = (max: number) =>
+  z
+    .string()
+    .trim()
+    .max(max)
+    .nullish()
+    .transform((v) => (v === undefined ? undefined : v ? v : null));
 
 export const passwortSchema = z
   .string()
@@ -70,7 +78,7 @@ export const platzAnlegenSchema = z.object({
 
 export const platzAendernSchema = z.object({
   name: text(100).optional(),
-  notiz: optText(500),
+  notiz: aendText(500),
   aktiv: z.boolean().optional(),
 });
 
@@ -94,12 +102,12 @@ export const stueckAnlegenSchema = z
 
 export const stueckAendernSchema = z.object({
   name: text(150).optional(),
-  kategorie: optText(80),
-  beschreibung: optText(1000),
+  kategorie: aendText(80),
+  beschreibung: aendText(1000),
   status: z.enum(["vorhanden", "defekt", "ausgemustert"]).optional(),
   behaelter: z.boolean().optional(),
   inventur: z.boolean().optional(),
-  pruef_art: optText(100),
+  pruef_art: aendText(100),
   pruef_intervall: z.number().int().min(1).max(120).nullish(),
   pruef_naechste: datum.nullish(),
 });
