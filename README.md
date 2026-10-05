@@ -23,7 +23,7 @@ Web-App für Handy, Tablet und PC. Läuft im **kostenlosen Tarif von Cloudflare*
 - [Rollen](#rollen)
 - [Am PC](#am-pc)
 - [Hell und dunkel](#hell-und-dunkel)
-- [Auf Cloudflare veröffentlichen (kostenlos)](#auf-cloudflare-veröffentlichen-kostenlos)
+- [Auf Cloudflare veröffentlichen (kostenlos)](#auf-cloudflare-veröffentlichen-kostenlos) · [ausführliche Anleitung](docs/cloudflare-einrichten.md)
 - [Entwicklung](#entwicklung)
 
 ---
@@ -179,17 +179,16 @@ Unter **Mein Konto** wählbar: automatisch (nach Geräteeinstellung), hell oder 
 
 ## Auf Cloudflare veröffentlichen (kostenlos)
 
-1. Kostenloses Konto auf [dash.cloudflare.com](https://dash.cloudflare.com) anlegen.
-2. **Workers & Pages → Erstellen → „Repository importieren“** → GitHub verbinden → dieses Repository wählen.
-3. Einstellungen:
-   - Build-Befehl: `npm run build`
-   - Deploy-Befehl: `npx wrangler deploy`
-   - Produktions-Branch: `main`
-4. **Bereitstellen.** Die Datenbank (D1, Name `web-scanner`) legt `wrangler deploy` beim ersten Mal selbst an, die Tabellen legt die App beim ersten Aufruf an.
-   Falls die Bereitstellung wegen der Datenbank abbricht: unter **Storage & Databases → D1** eine Datenbank `web-scanner` anlegen und deren ID in `wrangler.jsonc` als `"database_id"` eintragen.
-5. Die angezeigte Adresse (`https://web-scanner.<name>.workers.dev`) **sofort** öffnen und das **erste Admin-Konto** anlegen – solange es keinen Benutzer gibt, kann das jeder mit der Adresse.
-6. Empfohlen: den [Notfall-Code](#notfall-code-für-den-admin-zugang) hinterlegen.
-7. Unter **Plätze** Abteilungen und Regale anlegen, Etiketten drucken, aufkleben – los geht’s.
+👉 **Ausführliche Schritt-für-Schritt-Anleitung: [docs/cloudflare-einrichten.md](docs/cloudflare-einrichten.md)**
+
+Kurzfassung:
+
+1. Auf GitHub `main` als Standard-Branch einstellen und den Pull Request zusammenführen.
+2. Kostenloses Konto auf [dash.cloudflare.com](https://dash.cloudflare.com) anlegen.
+3. **D1-Datenbank `web-scanner`** anlegen (Standort Westeuropa).
+4. **Workers & Pages → Erstellen → Repository importieren** → dieses Repository; Projektname **`web-scanner`**, Build-Befehl `npm run build`, Deploy-Befehl `npx wrangler deploy`.
+5. Die Adresse (`https://web-scanner.<name>.workers.dev`) **sofort** öffnen und das **erste Admin-Konto** anlegen.
+6. Den [Notfall-Code](#notfall-code-für-den-admin-zugang) als Geheimnis `NOTFALL_CODE` hinterlegen.
 
 Danach wird jeder Push auf `main` automatisch veröffentlicht.
 
@@ -222,5 +221,6 @@ docs/             Plan, Design-System, Bilder
 ```
 
 Weitere Doku:
+- [docs/cloudflare-einrichten.md](docs/cloudflare-einrichten.md) – Einrichtung auf Cloudflare, Schritt für Schritt
 - [docs/PLAN.md](docs/PLAN.md) – Projektplan und Stand
 - [docs/design-system.md](docs/design-system.md) – Farben, Schrift, Komponenten, Barrierefreiheit
