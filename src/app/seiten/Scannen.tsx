@@ -1,4 +1,4 @@
-import { ArrowRightLeft, Handshake, ListX, PackageCheck, ScanSearch, Undo2 } from "lucide-react";
+import { ArrowRightLeft, Handshake, ListX, PackageCheck, ScanSearch, Undo2, Warehouse } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "react-router";
 import type { Platz, ScanTreffer, Stueck } from "../../gemeinsam/typen";
@@ -19,7 +19,6 @@ import { ZielKarte } from "../scanner/ZielKarte";
 import { ScanBild, useErfolg } from "../ui/bewegung";
 import { Abschnitt } from "../ui/karte";
 import { Segmente } from "../ui/formular";
-import { kl } from "../ui/kl";
 import { Knopf } from "../ui/knopf";
 import { useMeldung } from "../ui/meldungen";
 
@@ -164,10 +163,11 @@ export default function Scannen() {
     melden(`„${s.name}“ erfasst${s.platz ? ` → ${s.platz.pfad}` : ""}`);
   }
 
-  const mitLeiste = modus === "einlagern" || modus === "ausleihe";
+  // Aktionsleiste erst, wenn etwas gescannt ist – vorher erklärt die Ziel-Karte bzw. der Leertext alles
+  const mitLeiste = (modus === "einlagern" || modus === "ausleihe") && liste.eintraege.length > 0;
 
   return (
-    <div className={kl("mx-auto max-w-2xl space-y-4", mitLeiste && "pb-24 lg:pb-24")}>
+    <div className="mx-auto max-w-2xl space-y-4">
       <h1 className="sr-only">Scannen</h1>
       {kannBuchen && (
         <Segmente
@@ -184,7 +184,7 @@ export default function Scannen() {
 
       <Kamera
         beiCodes={liste.hinzufuegen}
-        hinweis={modus === "einlagern" && !ziel ? "Zuerst Regal oder Behälter scannen" : undefined}
+        hinweis={modus === "einlagern" && !ziel ? "Erst Regal oder Behälter scannen" : undefined}
       />
       <ManuelleEingabe beiCode={(c) => liste.hinzufuegen([c])} />
 
@@ -230,21 +230,21 @@ export default function Scannen() {
       </Abschnitt>
 
       {mitLeiste && (
-        <div className="fixed inset-x-0 bottom-[calc(108px+env(safe-area-inset-bottom))] z-30 px-4 lg:bottom-6 lg:left-72">
-          <div className="mx-auto flex max-w-2xl gap-2">
+        <div className="sticky bottom-[calc(72px+env(safe-area-inset-bottom))] z-30 -mx-4 bg-gradient-to-t from-hg from-60% to-transparent px-4 pb-3 pt-6 lg:bottom-0 lg:pb-6">
+          <div className="flex gap-2">
             {modus === "einlagern" ? (
               <Knopf
                 art="primaer"
                 groesse="xl"
                 breit
                 laedt={bucht}
-                disabled={!ziel || zuBuchen.length === 0}
-                onClick={() => void buchen()}
-                symbol={<PackageCheck className="size-6" />}
+                disabled={!!ziel && zuBuchen.length === 0}
+                onClick={() => (ziel ? void buchen() : setWahlOffen(true))}
+                symbol={ziel ? <PackageCheck className="size-6" /> : <Warehouse className="size-6" />}
                 className="shadow-hoch"
               >
                 {!ziel
-                  ? "Zuerst Ziel wählen"
+                  ? "Ziel wählen"
                   : zuBuchen.length
                     ? `${anzahl(zuBuchen.length, "Stück", "Stücke")} einlagern`
                     : offeneUnbekannte

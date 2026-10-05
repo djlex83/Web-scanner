@@ -123,7 +123,7 @@ export default function InventurPlatz() {
   );
 
   return (
-    <div className="mx-auto max-w-2xl space-y-5 pb-24">
+    <div className="mx-auto max-w-2xl space-y-5">
       <SeitenKopf zurueck titel="Inventur" unter={daten.platz.pfad} />
 
       <Karte className="space-y-3 p-5">
@@ -212,8 +212,8 @@ export default function InventurPlatz() {
         </Bereich>
       )}
 
-      <div className="fixed inset-x-0 bottom-[calc(108px+env(safe-area-inset-bottom))] z-30 px-4 lg:bottom-6 lg:left-72">
-        <div className="mx-auto max-w-2xl">
+      <div className="sticky bottom-[calc(72px+env(safe-area-inset-bottom))] z-30 -mx-4 bg-gradient-to-t from-hg from-60% to-transparent px-4 pb-3 pt-6 lg:bottom-0 lg:pb-6">
+        <div>
           <Knopf art="primaer" groesse="xl" breit symbol={<ClipboardCheck className="size-6" />} className="shadow-hoch" onClick={() => setAbschliessen(true)}>
             Inventur abschließen
           </Knopf>
