@@ -51,6 +51,7 @@ Dazu: **Inventur je Regal**, **Ausleihen** mit Rückgabedatum, **Aufräumen** (j
 | 🔎 **Bestand** | Suche nach Name, Code, Kategorie; Filter z. B. „ohne Platz“, „vermisst“, „verliehen“, „Prüfung fällig“, „Behälter“. |
 | 📊 **Export für Excel** | Bestand (gefiltert) oder Inhalt eines Regals als CSV – mit Platz, Stammplatz, Ausleihe, Prüftermin. |
 | 📋 **Inventur je Regal** | Regal wählen, alles scannen → sofort sehen, was fehlt und was zusätzlich da ist. Je Stück einstellbar, ob es gezählt wird. |
+| 🔢 **Regal per Foto zählen** | Zählhilfe in der Inventur: Foto vom Fach → Gegenstände werden auf dem Gerät gezählt (YOLOE-26), Stücke ohne lesbares Etikett orange markiert, Vergleich mit dem Soll. Bucht nichts. [Details](docs/zaehlhilfe.md) |
 | 🤝 **Ausleihen** | Stücke an Personen ausgeben, mit Rückgabedatum. Überfällige rot, Rückgabe per Scan. |
 | ↩️ **Rückgängig** | Nach jeder Buchung ein Knopf „Rückgängig“ (mit Countdown) – als Gegenbuchung, nichts wird gelöscht. |
 | 🔧 **Prüfung & Wartung** | Prüfart, Intervall und nächster Termin je Stück; nächste Prüfung automatisch **+1 Jahr**; Liste aller fälligen Prüfungen, Hinweis beim Scannen; Löschen ab Leitung. |
