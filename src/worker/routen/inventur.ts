@@ -88,6 +88,7 @@ inventurRouten.post("/", braucht("buchen"), async (c) => {
   const gefunden = new Set(gescannt.map((s) => s.id));
   const { results: hier } = await c.env.DB.prepare(
     `SELECT s.id, s.code, s.name, s.status, s.platz_id, s.in_behaelter_id, s.behaelter, s.vermisst_seit, s.inventur,
+            s.stamm_platz_id, s.stamm_behaelter_id,
             EXISTS (SELECT 1 FROM ausleihen a WHERE a.stueck_id = s.id AND a.zurueck_am IS NULL) AS verliehen
      FROM stuecke s WHERE s.platz_id IN (SELECT value FROM json_each(?)) AND s.status != 'ausgemustert'`,
   )

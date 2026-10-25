@@ -13,7 +13,7 @@ export const ROLLEN_NAME: Record<Rolle, string> = {
 export const ROLLEN_BESCHREIBUNG: Record<Rolle, string> = {
   leser: "Scannen und nachsehen, wo etwas ist",
   mitarbeiter: "Zusätzlich Stücke einlagern, umbuchen und neu erfassen",
-  leitung: "Zusätzlich Plätze und Stücke verwalten, komplettes Protokoll",
+  leitung: "Zusätzlich Plätze und Stücke verwalten, Prüfungen löschen, komplettes Protokoll",
   admin: "Zusätzlich Benutzer verwalten und Datensicherung",
 };
 
@@ -23,6 +23,7 @@ export type Recht =
   | "erfassen"
   | "plaetze_verwalten"
   | "stuecke_verwalten"
+  | "pruefungen_loeschen"
   | "protokoll_alle"
   | "benutzer_verwalten"
   | "sicherung";
@@ -33,6 +34,7 @@ const MINDESTROLLE: Record<Recht, Rolle> = {
   erfassen: "mitarbeiter",
   plaetze_verwalten: "leitung",
   stuecke_verwalten: "leitung",
+  pruefungen_loeschen: "leitung",
   protokoll_alle: "leitung",
   benutzer_verwalten: "admin",
   sicherung: "admin",

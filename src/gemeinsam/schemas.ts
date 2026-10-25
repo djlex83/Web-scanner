@@ -11,6 +11,14 @@ const optText = (max: number) =>
     .max(max)
     .nullish()
     .transform((v) => (v ? v : null));
+/** Für Änderungen (PATCH): weggelassen bleibt weggelassen (= unverändert), leer wird null (= löschen). */
+const aendText = (max: number) =>
+  z
+    .string()
+    .trim()
+    .max(max)
+    .nullish()
+    .transform((v) => (v === undefined ? undefined : v ? v : null));
 
 export const passwortSchema = z
   .string()
@@ -70,7 +78,7 @@ export const platzAnlegenSchema = z.object({
 
 export const platzAendernSchema = z.object({
   name: text(100).optional(),
-  notiz: optText(500),
+  notiz: aendText(500),
   aktiv: z.boolean().optional(),
 });
 
@@ -94,12 +102,12 @@ export const stueckAnlegenSchema = z
 
 export const stueckAendernSchema = z.object({
   name: text(150).optional(),
-  kategorie: optText(80),
-  beschreibung: optText(1000),
+  kategorie: aendText(80),
+  beschreibung: aendText(1000),
   status: z.enum(["vorhanden", "defekt", "ausgemustert"]).optional(),
   behaelter: z.boolean().optional(),
   inventur: z.boolean().optional(),
-  pruef_art: optText(100),
+  pruef_art: aendText(100),
   pruef_intervall: z.number().int().min(1).max(120).nullish(),
   pruef_naechste: datum.nullish(),
 });
@@ -120,8 +128,23 @@ export const buchenSchema = z
     nach_behaelter_id: z.number().int().positive().nullish(),
     stueck_ids: ids(),
     notiz: optText(500),
+    /** Ziel zugleich als neuen Stammplatz der Stücke festlegen */
+    stammplatz: z.boolean().optional().default(false),
   })
   .refine((e) => !e.nach_platz_id !== !e.nach_behaelter_id, { message: "Genau ein Ziel angeben", path: ["nach_platz_id"] });
+
+/** Stammplatz festlegen: Platz, Behälter, den aktuellen Ort – oder nichts davon = entfernen */
+export const stammplatzSchema = z
+  .object({
+    stueck_ids: ids(),
+    platz_id: z.number().int().positive().nullish(),
+    behaelter_id: z.number().int().positive().nullish(),
+    aktuell: z.boolean().optional(),
+  })
+  .refine((e) => [e.platz_id, e.behaelter_id, e.aktuell].filter(Boolean).length <= 1, {
+    message: "Höchstens ein Ziel angeben",
+    path: ["platz_id"],
+  });
 
 export const rueckgaengigSchema = z.object({
   vorgang_id: z.string().uuid(),
@@ -144,8 +167,12 @@ export const pruefungSchema = z.object({
   datum,
   ergebnis: z.enum(["bestanden", "mangel", "nicht_bestanden"]),
   notiz: optText(1000),
-  /** leer = aus dem Intervall berechnen */
+  /** weglassen = Prüfdatum + Intervall (Standard 1 Jahr); null = keine weitere Prüfung */
   naechste: datum.nullish(),
+});
+
+export const pruefungLoeschenSchema = z.object({
+  grund: optText(300),
 });
 
 export const inventurSchema = z.object({

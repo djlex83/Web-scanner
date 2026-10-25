@@ -244,7 +244,7 @@ export function Kamera({ beiCodes, hinweis }: { beiCodes: (codes: string[]) => v
 
       {/* Bedienleiste */}
       <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-2 bg-gradient-to-t from-black/60 to-transparent p-3 pt-10">
-        <p className="min-w-0 flex-1 truncate px-2 pb-3 text-sm font-medium text-white/90">
+        <p className="line-clamp-2 min-w-0 flex-1 px-2 pb-2 text-sm font-medium leading-snug text-white/90">
           {zustand === "laeuft" ? (hinweis ?? "Code in den Rahmen halten") : ""}
         </p>
         <label

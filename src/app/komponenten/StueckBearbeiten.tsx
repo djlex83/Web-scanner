@@ -104,7 +104,18 @@ export function StueckBearbeiten({ stueck, schliessen, gespeichert }: { stueck: 
           <Feld beschriftung="Art" hinweis="Leer lassen, wenn keine Prüfung nötig ist">
             {(p) => (
               <>
-                <Eingabe {...p} list={artenId} value={pruefArt} onChange={(e) => setPruefArt(e.target.value)} maxLength={100} placeholder="z. B. Elektroprüfung (DGUV V3)" />
+                <Eingabe
+                  {...p}
+                  list={artenId}
+                  value={pruefArt}
+                  onChange={(e) => {
+                    setPruefArt(e.target.value);
+                    // Prüfung neu eingerichtet: Standard-Intervall 1 Jahr
+                    if (e.target.value && !pruefArt && !intervall) setIntervall("12");
+                  }}
+                  maxLength={100}
+                  placeholder="z. B. Elektroprüfung (DGUV V3)"
+                />
                 <datalist id={artenId}>
                   {PRUEF_ARTEN.map((a) => (
                     <option key={a} value={a} />

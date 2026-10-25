@@ -93,6 +93,12 @@ export interface Stueck {
   in_behaelter: StueckKurz | null;
   ausleihe: AusleiheKurz | null;
   pruefung: PruefPlan;
+  /** wohin das Stück gehört: Platz (bei Behälter: dessen Platz) … */
+  stammplatz: PlatzKurz | null;
+  /** … oder dieser Behälter */
+  stamm_behaelter: StueckKurz | null;
+  /** liegt am Stammplatz? null = kein Stammplatz */
+  am_stammplatz: boolean | null;
 }
 
 export type PruefErgebnis = "bestanden" | "mangel" | "nicht_bestanden";
@@ -182,6 +188,7 @@ export interface Uebersicht {
   verliehen_ueberfaellig: number;
   pruefung_ueberfaellig: number;
   pruefung_bald: number;
+  nicht_am_stammplatz: number;
   letzte: Buchung[];
 }
 

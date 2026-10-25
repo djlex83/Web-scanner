@@ -1,4 +1,4 @@
-import { Download, PackagePlus, PackageSearch, Search, Shapes, X } from "lucide-react";
+import { Download, House, PackagePlus, PackageSearch, Search, Shapes, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import type { Seite, Stueck } from "../../gemeinsam/typen";
@@ -18,6 +18,7 @@ import { FehlerHinweis, Leer, SkelettListe } from "../ui/zustand";
 const FILTER = [
   { wert: "", text: "Alle" },
   { wert: "ohne", text: "Ohne Platz" },
+  { wert: "fremd", text: "Nicht am Stammplatz" },
   { wert: "vermisst", text: "Vermisst" },
   { wert: "verliehen", text: "Verliehen" },
   { wert: "pruefung", text: "Prüfung fällig" },
@@ -147,6 +148,15 @@ export default function Bestand() {
       </div>
       <Chips optionen={FILTER} wert={filter} aendern={filterSetzen} />
 
+      {filter === "fremd" && darf("buchen") && liste && liste.length > 0 && (
+        <div className="flex items-center gap-3 rounded-2xl bg-primaer-weich p-4 text-primaer-text">
+          <House className="size-5 shrink-0" />
+          <p className="min-w-0 flex-1 text-[14px] font-medium">Diese Stücke liegen nicht an ihrem Stammplatz. Einsammeln, scannen, mit einem Tipp zurückräumen.</p>
+          <KnopfLink to="/scannen?modus=zurueck" art="primaer" className="shrink-0">
+            Aufräumen
+          </KnopfLink>
+        </div>
+      )}
       {fehler && <FehlerHinweis text={fehler} />}
       {liste === null ? (
         <SkelettListe />

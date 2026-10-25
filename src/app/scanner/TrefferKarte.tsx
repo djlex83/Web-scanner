@@ -1,10 +1,10 @@
-import { ArrowRight, Box, CircleHelp, MapPin, Plus, SearchCheck, Warehouse, X } from "lucide-react";
+import { ArrowRight, Box, CircleHelp, House, MapPin, Plus, SearchCheck, Warehouse, X } from "lucide-react";
 import { Link } from "react-router";
 import type { Stueck } from "../../gemeinsam/typen";
 import { StueckBild } from "../komponenten/kategorie";
 import { datumText, StueckMerkmale } from "../komponenten/StueckMerkmale";
 import { vorWann } from "../lib/format";
-import { nichtMoeglich, schonDort, zielName, type Ziel } from "../lib/ziel";
+import { nichtMoeglich, schonDort, stammName, stammPfad, zielName, type Ziel } from "../lib/ziel";
 import { Abzeichen } from "../ui/abzeichen";
 import { kl } from "../ui/kl";
 import { Skelett } from "../ui/zustand";
@@ -13,7 +13,7 @@ import type { Eintrag } from "./useScanListe";
 interface Props {
   eintrag: Eintrag;
   /** Darstellung je Modus: wo liegt es / wohin kommt es / verliehen oder frei */
-  modus?: "suchen" | "einlagern" | "ausleihe";
+  modus?: "suchen" | "einlagern" | "ausleihe" | "zurueck";
   /** Ziel im Einlagern-Modus (null = noch keins) */
   ziel?: Ziel | null;
   erfassen?: (code: string) => void;
@@ -135,7 +135,37 @@ export function TrefferKarte({ eintrag, modus = "suchen", ziel = null, erfassen,
                       {s.bewegt_von && ` · ${s.bewegt_von}`}
                     </div>
                   )}
+                  {s.am_stammplatz === false && (
+                    <div className="mt-0.5 flex items-center gap-1 text-[12px] font-semibold text-warnung-text">
+                      <House className="size-3.5 shrink-0" /> <span className="truncate">gehört nach {stammPfad(s)}</span>
+                    </div>
+                  )}
                 </div>
+              </div>
+            )}
+
+            {modus === "zurueck" && (
+              <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[13px]">
+                {s.status === "ausgemustert" ? (
+                  <Abzeichen ton="neutral">Ausgemustert</Abzeichen>
+                ) : s.am_stammplatz === null ? (
+                  <Abzeichen ton="warnung">Kein Stammplatz bekannt</Abzeichen>
+                ) : s.am_stammplatz ? (
+                  <Abzeichen ton="erfolg">
+                    <House /> Liegt am Stammplatz
+                  </Abzeichen>
+                ) : (
+                  <>
+                    <span className="max-w-[45%] truncate text-gedaempft">
+                      {s.in_behaelter ? s.in_behaelter.name : (s.platz?.name ?? "ohne Platz")}
+                    </span>
+                    <ArrowRight className="size-3.5 shrink-0 text-primaer-text" />
+                    <House className="size-3.5 shrink-0 text-primaer-text" />
+                    <span className="truncate font-semibold text-primaer-text" title={stammPfad(s) ?? undefined}>
+                      {stammName(s)}
+                    </span>
+                  </>
+                )}
               </div>
             )}
 

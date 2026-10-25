@@ -202,6 +202,113 @@
   animation: treffer 0.6s ease-out;
 }
 
+/* Motion Graphics: nur transform, opacity und stroke – flüssig auch auf schwachen Geräten */
+@keyframes seite-ein {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes schweben {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+@keyframes zeichnen {
+  from { stroke-dashoffset: 1; }
+  to { stroke-dashoffset: 0; }
+}
+@keyframes ring {
+  0% { transform: scale(0.7); opacity: 0.55; }
+  100% { transform: scale(1.7); opacity: 0; }
+}
+@keyframes kreis-ploppen {
+  0% { transform: scale(0); }
+  60% { transform: scale(1.08); }
+  100% { transform: scale(1); }
+}
+@keyframes laser {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(var(--laser-weg, 24px)); }
+}
+@keyframes ablaufen {
+  from { transform: scaleX(1); }
+  to { transform: scaleX(0); }
+}
+@keyframes erfolg-blase {
+  0% { opacity: 0; transform: scale(0.75); }
+  14% { opacity: 1; transform: scale(1.04); }
+  24% { transform: scale(1); }
+  78% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(0.96); }
+}
+@keyframes glanz {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(250%); }
+}
+@keyframes logo-scan {
+  0% { transform: translateY(-6px); opacity: 0; }
+  10% { opacity: 1; }
+  55% { transform: translateY(var(--logo-weg, 40px)); opacity: 1; }
+  65%, 100% { transform: translateY(var(--logo-weg, 40px)); opacity: 0; }
+}
+@utility anim-seite {
+  animation: seite-ein 0.22s ease-out both;
+  @media (prefers-reduced-motion: reduce) { animation: none; }
+}
+@utility anim-schweben {
+  animation: schweben 3.2s ease-in-out infinite;
+  @media (prefers-reduced-motion: reduce) { animation: none; }
+}
+@utility anim-zeichnen {
+  stroke-dasharray: 1;
+  animation: zeichnen 0.42s cubic-bezier(0.65, 0, 0.35, 1) 0.18s both;
+  @media (prefers-reduced-motion: reduce) { animation: none; }
+}
+@utility anim-ring {
+  animation: ring 0.8s ease-out 0.12s both;
+  @media (prefers-reduced-motion: reduce) { animation: none; opacity: 0; }
+}
+@utility anim-kreis {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: kreis-ploppen 0.36s var(--ease-feder) both;
+  @media (prefers-reduced-motion: reduce) { animation: none; }
+}
+@utility anim-laser {
+  animation: laser 1.6s ease-in-out infinite;
+  @media (prefers-reduced-motion: reduce) { animation: none; }
+}
+@utility anim-ablaufen {
+  transform-origin: left;
+  animation: ablaufen linear both;
+  @media (prefers-reduced-motion: reduce) { animation: none; }
+}
+@utility anim-blase {
+  animation: erfolg-blase 1.15s var(--ease-feder) both;
+  @media (prefers-reduced-motion: reduce) { animation: seite-ein 0.2s both; }
+}
+@utility anim-glanz {
+  animation: glanz 1.6s ease-in-out infinite;
+  @media (prefers-reduced-motion: reduce) { animation: none; opacity: 0; }
+}
+@utility anim-logo-scan {
+  animation: logo-scan 3.6s ease-in-out 0.4s infinite both;
+  @media (prefers-reduced-motion: reduce) { animation: none; opacity: 0; }
+}
+
+/* Listen bauen sich gestaffelt auf (nur beim ersten Erscheinen der Zeilen) */
+.anim-staffel > * {
+  animation: einblenden 0.32s var(--ease-feder) both;
+}
+.anim-staffel > :nth-child(2) { animation-delay: 35ms; }
+.anim-staffel > :nth-child(3) { animation-delay: 70ms; }
+.anim-staffel > :nth-child(4) { animation-delay: 105ms; }
+.anim-staffel > :nth-child(5) { animation-delay: 140ms; }
+.anim-staffel > :nth-child(6) { animation-delay: 175ms; }
+.anim-staffel > :nth-child(7) { animation-delay: 210ms; }
+.anim-staffel > :nth-child(n + 8) { animation-delay: 245ms; }
+@media (prefers-reduced-motion: reduce) {
+  .anim-staffel > * { animation: none; }
+}
+
 /* Druck (Papiergröße setzt die Etiketten-Seite selbst) */
 @media print {
   body { background: white; }

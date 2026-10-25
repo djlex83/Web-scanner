@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { heute as heutigesDatum, plusTage } from "../../gemeinsam/datum";
 import type { Uebersicht } from "../../gemeinsam/typen";
-import { plaetzeLaden } from "../db/abfragen";
+import { NICHT_AM_STAMMPLATZ, plaetzeLaden } from "../db/abfragen";
 import { braucht, protokollEintrag, type AppEnv } from "../kontext";
 import { buchungenAbfragen } from "./buchungen";
 
@@ -34,7 +34,8 @@ uebersichtRouten.get("/", braucht("abfragen"), async (c) => {
           (SELECT COUNT(*) FROM ausleihen WHERE zurueck_am IS NULL) AS verliehen,
           (SELECT COUNT(*) FROM ausleihen WHERE zurueck_am IS NULL AND bis < ?1) AS verliehen_ueberfaellig,
           (SELECT COUNT(*) FROM stuecke WHERE pruef_naechste < ?1 AND status != 'ausgemustert') AS pruefung_ueberfaellig,
-          (SELECT COUNT(*) FROM stuecke WHERE pruef_naechste >= ?1 AND pruef_naechste <= ?2 AND status != 'ausgemustert') AS pruefung_bald`,
+          (SELECT COUNT(*) FROM stuecke WHERE pruef_naechste >= ?1 AND pruef_naechste <= ?2 AND status != 'ausgemustert') AS pruefung_bald,
+          (SELECT COUNT(*) FROM stuecke s WHERE s.status != 'ausgemustert' AND ${NICHT_AM_STAMMPLATZ}) AS nicht_am_stammplatz`,
       )
       .bind(heutigesDatum(), plusTage(heutigesDatum(), 30))
       .first<Omit<Uebersicht, "bewegungen_heute" | "letzte">>(),
@@ -52,6 +53,7 @@ uebersichtRouten.get("/", braucht("abfragen"), async (c) => {
     verliehen_ueberfaellig: zahlen?.verliehen_ueberfaellig ?? 0,
     pruefung_ueberfaellig: zahlen?.pruefung_ueberfaellig ?? 0,
     pruefung_bald: zahlen?.pruefung_bald ?? 0,
+    nicht_am_stammplatz: zahlen?.nicht_am_stammplatz ?? 0,
     bewegungen_heute: bewegungen?.n ?? 0,
     letzte: letzte.eintraege,
   };

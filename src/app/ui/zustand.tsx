@@ -1,5 +1,6 @@
 import { AlertTriangle, RotateCw } from "lucide-react";
 import type { ReactNode } from "react";
+import { ScanLader } from "./bewegung";
 import { kl } from "./kl";
 
 export function Kreisel({ klein, className }: { klein?: boolean; className?: string }) {
@@ -19,7 +20,7 @@ export function Kreisel({ klein, className }: { klein?: boolean; className?: str
 export function Laden({ text = "Lädt …" }: { text?: string }) {
   return (
     <div className="flex flex-col items-center justify-center gap-3 py-16 text-gedaempft">
-      <Kreisel />
+      <ScanLader />
       <span className="text-sm">{text}</span>
     </div>
   );
@@ -52,10 +53,10 @@ export function Leer({
 }) {
   return (
     <div className="anim-ein flex flex-col items-center px-6 py-14 text-center">
-      <div className="mb-4 flex size-16 items-center justify-center rounded-2xl bg-primaer-weich text-primaer-text [&_svg]:size-7">
+      <div className="anim-schweben mb-4 flex size-16 items-center justify-center rounded-2xl bg-primaer-weich text-primaer-text [&_svg]:size-7">
         {symbol}
       </div>
-      <h3 className="text-lg font-semibold">{titel}</h3>
+      <h2 className="text-lg font-semibold">{titel}</h2>
       {text && <p className="mt-1 max-w-sm text-[15px] text-gedaempft">{text}</p>}
       {aktion && <div className="mt-5">{aktion}</div>}
     </div>

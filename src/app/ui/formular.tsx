@@ -97,6 +97,8 @@ export function Segmente<T extends string>({
   beschriftung: string;
   className?: string;
 }) {
+  // Ab vier Optionen Symbol über dem Text, damit alles auch am Handy in eine Zeile passt
+  const gestapelt = optionen.length >= 4;
   return (
     <div role="radiogroup" aria-label={beschriftung} className={kl("flex rounded-2xl bg-flaeche-2 p-1", className)}>
       {optionen.map((o) => {
@@ -109,7 +111,8 @@ export function Segmente<T extends string>({
             aria-checked={aktiv}
             onClick={() => aendern(o.wert)}
             className={kl(
-              "flex h-11 flex-1 items-center justify-center gap-2 rounded-xl text-[15px] font-semibold transition-all [&_svg]:size-[18px]",
+              "flex min-w-0 flex-1 items-center justify-center rounded-xl font-semibold transition-all [&_svg]:size-[18px]",
+              gestapelt ? "h-14 flex-col gap-0.5 text-[12px] leading-tight" : "h-11 gap-2 text-[15px]",
               aktiv ? "bg-flaeche text-text shadow-karte dark:bg-rand" : "text-gedaempft hover:text-text",
             )}
           >
