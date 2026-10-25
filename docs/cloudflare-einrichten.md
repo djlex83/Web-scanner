@@ -186,6 +186,7 @@ Beim ersten Scannen fragt das Handy nach der **Kamera-Erlaubnis** → *Erlauben*
 | **Fehler 1102** / „Worker exceeded resource limits“ beim Anmelden | Das Rechenlimit des kostenlosen Tarifs wurde überschritten. `PBKDF2_RUNDEN` in `wrangler.jsonc` ist bereits auf 20 000 gesetzt; falls es trotzdem auftritt, den Entwickler fragen. |
 | **Kamera** startet nicht | Die Seite muss über `https://` laufen (bei `workers.dev` immer der Fall) und die Kamera muss erlaubt sein: Browser-Einstellungen → Website-Einstellungen → Kamera. Notfalls Codes eintippen oder einen Handscanner nutzen. |
 | Jemand anderes hat das erste Konto angelegt | **Nur solange noch keine echten Daten drin sind:** Worker **und** D1-Datenbank `web-scanner` löschen, dann Schritt 2 bis 4 wiederholen – Schritt 4 diesmal sofort. |
+| Änderungen auf `main` erscheinen **nicht online**, unter *Bereitstellungen* kommt kein neuer Build | Der **Produktions-Branch** steht auf einer anderen Branch. *Workers & Pages → web-scanner → Einstellungen → Build → Branch-Steuerung*: Produktions-Branch auf **`main`** stellen. Cloudflare baut erst beim **nächsten Push** auf `main`; das Umstellen allein startet keinen Build. Auf GitHub erkennt man einen fertigen Build am Haken **„Workers Builds: web-scanner“** am Commit. |
 | Admin-Passwort vergessen, kein zweiter Admin | Notfall-Code (Schritt 5) auf der Anmeldeseite benutzen. |
 
 ---
@@ -195,7 +196,7 @@ Beim ersten Scannen fragt das Handy nach der **Kamera-Erlaubnis** → *Erlauben*
 - [ ] Default branch auf GitHub = `main`, Pull Request zusammengeführt
 - [ ] Cloudflare-Konto mit Zwei-Faktor-Anmeldung
 - [ ] D1-Datenbank `web-scanner` in Westeuropa
-- [ ] Worker `web-scanner` mit GitHub verbunden, Build grün
+- [ ] Worker `web-scanner` mit GitHub verbunden, Produktions-Branch `main`, Build grün
 - [ ] Builds für andere Branches ausgeschaltet
 - [ ] Erstes Admin-Konto angelegt (sofort!) + zweiter Admin
 - [ ] Notfall-Code als **Geheimnis** hinterlegt und sicher aufbewahrt
