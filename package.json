@@ -18,6 +18,7 @@
     "barcode-detector": "^3.2.2",
     "hono": "^4.13.13",
     "lucide-react": "^1.52.0",
+    "onnxruntime-web": "^1.30.0",
     "qrcode": "^1.5.4",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",

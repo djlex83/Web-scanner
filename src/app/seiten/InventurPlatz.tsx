@@ -1,9 +1,10 @@
-import { CheckCircle2, ChevronDown, ClipboardCheck, PackagePlus, SearchX, X } from "lucide-react";
+import { CheckCircle2, ChevronDown, ClipboardCheck, PackagePlus, ScanSearch, SearchX, X } from "lucide-react";
 import { ErfolgsHaken } from "../ui/bewegung";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import type { InventurEintrag, InventurErgebnis, Platz, ScanTreffer, Stueck } from "../../gemeinsam/typen";
 import { ErfassenBlatt } from "../komponenten/ErfassenBlatt";
+import { RegalZaehlen } from "../komponenten/RegalZaehlen";
 import { StueckBild } from "../komponenten/kategorie";
 import { fehlerText, senden } from "../lib/api";
 import { anzahl, vorWann } from "../lib/format";
@@ -49,6 +50,7 @@ export default function InventurPlatz() {
   const [abschliessen, setAbschliessen] = useState(false);
   const [ergebnis, setErgebnis] = useState<InventurErgebnis | null>(null);
   const [erfassenCode, setErfassenCode] = useState<string | null>(null);
+  const [zaehlen, setZaehlen] = useState(false);
 
   const beiTreffer = useCallback(
     (t: ScanTreffer) => {
@@ -161,6 +163,9 @@ export default function InventurPlatz() {
 
       <Kamera beiCodes={liste.hinzufuegen} hinweis="Alles scannen, was im Regal liegt" />
       <ManuelleEingabe beiCode={(c) => liste.hinzufuegen([c])} />
+      <Knopf breit symbol={<ScanSearch className="size-5" />} onClick={() => setZaehlen(true)}>
+        Regal per Foto zählen
+      </Knopf>
 
       {unbekannt.length > 0 && (
         <Bereich titel="Unbekannte Codes" anzahl={unbekannt.length} ton="warnung" offen>
@@ -239,6 +244,13 @@ export default function InventurPlatz() {
           }}
         />
       )}
+      <RegalZaehlen
+        offen={zaehlen}
+        schliessen={() => setZaehlen(false)}
+        erwartet={erwartet.length}
+        gescannt={okListe.length + zusaetzlich.length}
+        beiCodes={liste.hinzufuegen}
+      />
       <ErfassenBlatt
         code={erfassenCode}
         ziel={{ art: "platz", platz: daten.platz }}
