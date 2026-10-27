@@ -247,8 +247,7 @@ export default function InventurPlatz() {
       <RegalZaehlen
         offen={zaehlen}
         schliessen={() => setZaehlen(false)}
-        erwartet={erwartet.length}
-        gescannt={okListe.length + zusaetzlich.length}
+        stuecke={erwartet}
         beiCodes={liste.hinzufuegen}
       />
       <ErfassenBlatt

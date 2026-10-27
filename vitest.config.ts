@@ -5,6 +5,8 @@ export default defineConfig({
   plugins: [
     cloudflareTest({
       main: "./src/worker/index.ts",
+      // Workers AI läuft nur bei Cloudflare; Tests dürfen ohne Konto und Netz laufen
+      remoteBindings: false,
       wrangler: { configPath: "./wrangler.jsonc" },
       miniflare: { bindings: { NOTFALL_CODE: "test-notfall-code-1234567890" } },
     }),

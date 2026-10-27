@@ -1,98 +1,123 @@
 import { describe, expect, it } from "vitest";
 import {
-  ausgabeLesen,
-  auswerten,
-  codesZuordnen,
-  doppelteEntfernen,
-  iou,
-  rahmenBerechnen,
-  zuGrossEntfernen,
-  type Kasten,
-} from "../src/app/zaehlen/auswertung";
+  codesZuPunkten,
+  doppeltePunkteEntfernen,
+  geminiAnweisung,
+  geminiPunkte,
+  MAX_ZIELE,
+  moondreamPunkte,
+  zieleVorschlagen,
+} from "../src/gemeinsam/zaehlen";
+import { adminEinrichten, Client } from "./hilfen";
 
-const k = (x1: number, y1: number, x2: number, y2: number, wert = 0.9): Kasten => ({ x1, y1, x2, y2, wert });
-const etikett = (code: string, x: number, y: number, s = 10) => ({
-  code,
-  ecken: [
-    { x, y },
-    { x: x + s, y },
-    { x: x + s, y: y + s },
-    { x, y: y + s },
-  ],
-});
+const stueck = (name: string, kategorie: string | null = null, beschreibung: string | null = null) => ({ name, kategorie, beschreibung });
 
-describe("Zählhilfe: Modellausgabe", () => {
-  it("rechnet Letterbox-Koordinaten aufs Foto zurück", () => {
-    // Querformat 1280×640 → Faktor 0,5, oben und unten je 160 px Rand
-    const r = rahmenBerechnen(1280, 640, 640);
-    expect(r).toMatchObject({ faktor: 0.5, versatzX: 0, versatzY: 160 });
-    const kaesten = ausgabeLesen([100, 200, 300, 400, 0.8, 7, 0, 0], 8, r, 0.25);
-    expect(kaesten).toEqual([{ x1: 200, y1: 80, x2: 600, y2: 480, wert: 0.8 }]);
+describe("Zählhilfe: Arten aus den Stücken", () => {
+  it("gruppiert nach Kategorie, nimmt Name und Beschreibung dazu, größte Gruppe zuerst", () => {
+    const ziele = zieleVorschlagen([
+      stueck("Akkuschrauber GSR 18V", "Elektrowerkzeug", "blauer Koffer"),
+      stueck("Akkuschrauber GSR 18V", "elektrowerkzeug"),
+      stueck("Wasserwaage 60 cm", null, "gelb, Aluminium"),
+    ]);
+    expect(ziele).toEqual([
+      { text: "Elektrowerkzeug: Akkuschrauber GSR 18V, blauer Koffer", soll: 2 },
+      { text: "Wasserwaage 60 cm: gelb, Aluminium", soll: 1 },
+    ]);
   });
 
-  it("verwirft unsichere, winzige und leere Zeilen und klemmt auf den Bildrand", () => {
-    const r = rahmenBerechnen(640, 640, 640);
-    const daten = [
-      [10, 10, 100, 100, 0.2, 0], // zu unsicher
-      [10, 10, 11, 11, 0.9, 0], // winzig
-      [0, 0, 0, 0, 0, 0], // Füllzeile des Modells
-      [-20, -20, 700, 50, 0.9, 1], // über den Rand
-    ].flat();
-    expect(ausgabeLesen(daten, 6, r, 0.3)).toEqual([{ x1: 0, y1: 0, x2: 640, y2: 50, wert: 0.9 }]);
-    expect(() => ausgabeLesen([1, 2, 3], 3, r, 0.3)).toThrow();
+  it("nennt bei verschiedenen Stücken einer Kategorie deren Namen", () => {
+    const [z] = zieleVorschlagen([stueck("Flex", "Werkzeug"), stueck("Bohrmaschine", "Werkzeug"), stueck("Stichsäge", "Werkzeug")]);
+    expect(z).toEqual({ text: "Werkzeug: Flex, Bohrmaschine, Stichsäge", soll: 3 });
+  });
+
+  it("kürzt lange Beschreibungen und begrenzt die Zahl der Arten", () => {
+    const lang = "sehr ".repeat(60) + "langer Text";
+    const [z] = zieleVorschlagen([stueck("Koffer", null, lang)]);
+    expect(z!.text.length).toBeLessThanOrEqual(120);
+    expect(z!.text.endsWith("…")).toBe(true);
+    const viele = Array.from({ length: 10 }, (_, i) => stueck(`Teil ${i}`));
+    expect(zieleVorschlagen(viele)).toHaveLength(MAX_ZIELE);
+    expect(zieleVorschlagen([])).toEqual([]);
   });
 });
 
-describe("Zählhilfe: Bereinigung", () => {
-  it("zählt denselben Gegenstand unter zwei Namen nur einmal", () => {
-    const raus = doppelteEntfernen([k(0, 0, 100, 100, 0.9), k(5, 5, 102, 98, 0.6), k(200, 0, 300, 100, 0.7)]);
-    expect(raus).toHaveLength(2);
-    expect(raus[0]!.wert).toBe(0.9);
+describe("Zählhilfe: Antworten der Modelle", () => {
+  it("Moondream: normierte Punkte bleiben, Pixel werden umgerechnet, Ausreißer fallen weg", () => {
+    expect(moondreamPunkte([{ x: 0.25, y: 0.5 }, { x: 1.2, y: 0.5 }], 2, 1000, 800)).toEqual([{ x: 0.25, y: 0.5, ziel: 2 }]);
+    expect(moondreamPunkte([{ x: 500, y: 400 }], 0, 1000, 800)).toEqual([{ x: 0.5, y: 0.5, ziel: 0 }]);
+    expect(moondreamPunkte(null, 0, 10, 10)).toEqual([]);
   });
 
-  it("entfernt Teile eines Gegenstands, behält aber Kleines in großen Kisten", () => {
-    // Griff (fast ganz im Werkzeug, ähnlich groß) → weg
-    expect(doppelteEntfernen([k(0, 0, 100, 100, 0.9), k(10, 10, 90, 90, 0.5)])).toHaveLength(1);
-    // Kleines Teil in einem viel größeren Kasten → bleibt
-    expect(doppelteEntfernen([k(0, 0, 400, 400, 0.9), k(10, 10, 60, 60, 0.5)])).toHaveLength(2);
+  it("Gemini: liest y/x auf 0–1000, auch als point-Array, auch in Code-Zaun", () => {
+    const text = '```json\n{"punkte":[{"ziel":1,"y":250,"x":500},{"ziel":7,"point":[100,900]},{"ziel":0,"y":1200,"x":10}]}\n```';
+    expect(geminiPunkte(text, 2)).toEqual([
+      { x: 0.5, y: 0.25, ziel: 1 },
+      { x: 0.9, y: 0.1, ziel: null },
+    ]);
+    expect(geminiPunkte('[{"ziel":0,"y":0,"x":0}]', 1)).toEqual([{ x: 0, y: 0, ziel: 0 }]);
+    expect(() => geminiPunkte("kein json", 1)).toThrow();
+    expect(() => geminiPunkte('{"anders":1}', 1)).toThrow();
   });
 
-  it("wirft das ganze Regal raus", () => {
-    expect(zuGrossEntfernen([k(0, 0, 1000, 800), k(10, 10, 100, 100)], 1000, 1000)).toHaveLength(1);
-  });
-
-  it("iou ist symmetrisch und 0 ohne Überschneidung", () => {
-    expect(iou(k(0, 0, 10, 10), k(5, 0, 15, 10))).toBeCloseTo(1 / 3);
-    expect(iou(k(0, 0, 10, 10), k(20, 20, 30, 30))).toBe(0);
+  it("Gemini-Anweisung nummeriert die Arten", () => {
+    const a = geminiAnweisung(["Akkuschrauber", "Koffer"]);
+    expect(a).toContain("0: Akkuschrauber");
+    expect(a).toContain("1: Koffer");
   });
 });
 
-describe("Zählhilfe: Codes zuordnen", () => {
-  it("ordnet jeden Code dem kleinsten Gegenstand zu und erkennt Gegenstände ohne Etikett", () => {
-    const kiste = k(0, 0, 500, 500);
-    const flex = k(20, 20, 120, 120);
-    const akku = k(300, 300, 400, 400);
-    const { gegenstaende, ohneGegenstand } = codesZuordnen(
-      [kiste, flex, akku],
-      [etikett("A-1", 50, 50), etikett("K-1", 200, 200), etikett("X-9", 900, 900)],
-    );
-    expect(gegenstaende.map((g) => g.code)).toEqual(["K-1", "A-1", null]);
-    expect(ohneGegenstand).toEqual(["X-9"]);
+describe("Zählhilfe: Punkte und Codes", () => {
+  it("führt dasselbe Teil unter zwei Arten zusammen, lässt Nachbarn stehen", () => {
+    const punkte = [
+      { x: 0.5, y: 0.5, ziel: 0 },
+      { x: 0.505, y: 0.5, ziel: 1 },
+      { x: 0.6, y: 0.5, ziel: 1 },
+    ];
+    expect(doppeltePunkteEntfernen(punkte, 1000, 1000)).toEqual([punkte[0], punkte[2]]);
   });
 
-  it("ein Kasten, der nur das Etikett ist, zählt nicht als Gegenstand", () => {
-    const { gegenstaende } = codesZuordnen([k(50, 50, 60, 60), k(0, 0, 100, 100)], [etikett("A-1", 50, 50)]);
-    expect(gegenstaende).toHaveLength(1);
-    expect(gegenstaende[0]!.code).toBe("A-1");
-  });
-
-  it("Gesamtergebnis: Schätzung = Gegenstände + Codes ohne erkannten Gegenstand", () => {
-    const e = auswerten(
-      [k(0, 0, 100, 100), k(200, 0, 300, 100), k(0, 0, 1000, 1000)],
-      [etikett("A-1", 40, 40), etikett("B-2", 600, 600), etikett("B-2", 600, 600)],
+  it("ordnet jeden Code dem nächsten Punkt zu, jeden höchstens einmal", () => {
+    const punkte = [
+      { x: 0.2, y: 0.2, ziel: 0 },
+      { x: 0.25, y: 0.2, ziel: 0 },
+      { x: 0.9, y: 0.9, ziel: 0 },
+    ];
+    const z = codesZuPunkten(
+      punkte,
+      [
+        { code: "A-1", x: 0.21, y: 0.21 },
+        { code: "A-2", x: 0.22, y: 0.21 },
+        { code: "X-9", x: 0.5, y: 0.6 },
+      ],
       1000,
       1000,
     );
-    expect(e).toMatchObject({ mitCode: 1, ohneCode: 1, geschaetzt: 3, codes: ["A-1", "B-2"] });
+    expect([...z.entries()].sort()).toEqual([
+      [0, "A-1"],
+      [1, "A-2"],
+    ]);
+  });
+});
+
+describe("Zählhilfe: Schnittstelle", () => {
+  const bild = "data:image/jpeg;base64,/9j/4AAQSkZJRg==";
+
+  it("verlangt Anmeldung", async () => {
+    const r = await new Client().post("/zaehlen", { modell: "moondream", bild, breite: 640, hoehe: 480, ziele: ["Koffer"] });
+    expect(r.status).toBe(401);
+  });
+
+  it("prüft Foto und Arten", async () => {
+    const admin = await adminEinrichten();
+    expect((await admin.post("/zaehlen", { modell: "moondream", bild: "http://x", breite: 640, hoehe: 480, ziele: ["Koffer"] })).status).toBe(400);
+    expect((await admin.post("/zaehlen", { modell: "moondream", bild, breite: 640, hoehe: 480, ziele: [] })).status).toBe(400);
+    expect((await admin.post("/zaehlen", { modell: "anders", bild, breite: 640, hoehe: 480, ziele: ["Koffer"] })).status).toBe(400);
+  });
+
+  it("Gemini ohne Schlüssel ist nicht eingerichtet", async () => {
+    const admin = await adminEinrichten();
+    expect((await admin.get("/zaehlen/modelle")).daten.gemini).toBe(false);
+    const r = await admin.post("/zaehlen", { modell: "gemini", bild, breite: 640, hoehe: 480, ziele: ["Koffer"] });
+    expect(r.status).toBe(409);
   });
 });
