@@ -1,93 +1,188 @@
-import { Camera, ScanLine, Sparkles } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Camera, Plus, RefreshCw, ScanLine, Sparkles, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
+import type { Stueck } from "../../gemeinsam/typen";
+import {
+  codesZuPunkten,
+  MAX_ZIEL_TEXT,
+  MAX_ZIELE,
+  ZAEHL_MODELL_NAME,
+  zieleVorschlagen,
+  type CodeOrt,
+  type ZaehlAntwort,
+  type ZaehlModell,
+  type ZaehlPunkt,
+  type ZaehlZiel,
+} from "../../gemeinsam/zaehlen";
+import { fehlerText, senden } from "../lib/api";
 import { anzahl } from "../lib/format";
+import { useLaden } from "../lib/hooks";
 import { signalFertig } from "../lib/rueckmeldung";
 import { erkennen } from "../scanner/erkennung";
 import { Blatt } from "../ui/blatt";
+import { Eingabe, Segmente } from "../ui/formular";
 import { kl } from "../ui/kl";
 import { Knopf } from "../ui/knopf";
 import { FehlerHinweis, Kreisel } from "../ui/zustand";
-import { auswerten, type ZaehlErgebnis } from "../zaehlen/auswertung";
-import { gegenstaendeFinden } from "../zaehlen/modell";
 
-const MAX_SEITE = 1600; // größer bringt dem 640er-Modell nichts, kostet aber Speicher
+/** Größer bringt den Modellen kaum etwas, kostet aber Upload und Tokens. */
+const MAX_SEITE = 1280;
 
-type Schritt = { art: "leer" } | { art: "laeuft"; text: string; anteil?: number } | { art: "fertig"; e: ZaehlErgebnis; bild: string; breite: number; hoehe: number };
+/** Farbe je Art – kräftig genug für helle und dunkle Fotos, Punkte haben zusätzlich einen weißen Rand. */
+const FARBEN = ["#4f46e5", "#db2777", "#0891b2", "#ea580c", "#65a30d", "#9333ea"];
+const OHNE_ART = "#6b7280";
 
-async function verkleinern(datei: File): Promise<ImageBitmap> {
-  const roh = await createImageBitmap(datei, { imageOrientation: "from-image" });
-  const f = Math.min(1, MAX_SEITE / Math.max(roh.width, roh.height));
-  if (f === 1) return roh;
+interface Foto {
+  url: string;
+  dataUrl: string;
+  breite: number;
+  hoehe: number;
+  codes: CodeOrt[];
+}
+
+async function fotoVorbereiten(datei: File): Promise<Foto> {
+  let bild: ImageBitmap;
   try {
-    return await createImageBitmap(roh, { resizeWidth: Math.round(roh.width * f), resizeHeight: Math.round(roh.height * f), resizeQuality: "high" });
+    bild = await createImageBitmap(datei, { imageOrientation: "from-image" });
+  } catch {
+    throw new Error("Dieses Bildformat wird nicht unterstützt");
+  }
+  try {
+    // Strichcodes am Original lesen: kleine Etiketten gehen beim Verkleinern sonst verloren
+    const funde = await erkennen(bild);
+    const codes = funde.map((f) => ({
+      code: f.code,
+      x: f.ecken.reduce((s, p) => s + p.x, 0) / f.ecken.length / bild.width,
+      y: f.ecken.reduce((s, p) => s + p.y, 0) / f.ecken.length / bild.height,
+    }));
+    const faktor = Math.min(1, MAX_SEITE / Math.max(bild.width, bild.height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(bild.width * faktor);
+    canvas.height = Math.round(bild.height * faktor);
+    const ctx = canvas.getContext("2d")!;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(bild, 0, 0, canvas.width, canvas.height);
+    const dataUrl = canvas.toDataURL("image/jpeg", 0.82);
+    const blob = await (await fetch(dataUrl)).blob();
+    return { url: URL.createObjectURL(blob), dataUrl, breite: canvas.width, hoehe: canvas.height, codes };
   } finally {
-    roh.close();
+    bild.close();
   }
 }
 
-async function alsBildUrl(bild: ImageBitmap): Promise<string> {
-  const c = document.createElement("canvas");
-  c.width = bild.width;
-  c.height = bild.height;
-  c.getContext("2d")!.drawImage(bild, 0, 0);
-  const blob = await new Promise<Blob | null>((r) => c.toBlob(r, "image/jpeg", 0.8));
-  if (!blob) throw new Error("Foto konnte nicht angezeigt werden");
-  return URL.createObjectURL(blob);
-}
-
 /**
- * Zählhilfe für die Inventur: Foto vom Regal → Gegenstände zählen (YOLOE-26 auf dem Gerät)
- * und mit den Strichcodes auf demselben Foto abgleichen. Nur eine Schätzung, bucht nichts.
+ * Zählhilfe für die Inventur: Foto vom Regal → ein Punkt je Teil (Moondream oder Gemini).
+ * Punkte lassen sich per Tippen setzen und entfernen. Bucht nichts.
  */
 export function RegalZaehlen({
   offen,
   schliessen,
-  erwartet,
-  gescannt,
+  stuecke,
   beiCodes,
 }: {
   offen: boolean;
   schliessen: () => void;
-  /** laut System auf diesem Platz (inventurpflichtig) */
-  erwartet: number;
-  /** schon gescannt */
-  gescannt: number;
+  /** Stücke, die laut System hier liegen (inventurpflichtig) – daraus werden die Arten vorgeschlagen */
+  stuecke: Stueck[];
   beiCodes: (codes: string[]) => void;
 }) {
-  const [schritt, setSchritt] = useState<Schritt>({ art: "leer" });
+  const { daten: verfuegbar } = useLaden<Record<ZaehlModell, boolean>>(offen ? "/zaehlen/modelle" : null);
+  const [ziele, setZiele] = useState<ZaehlZiel[]>(() => zieleVorschlagen(stuecke));
+  const [modell, setModell] = useState<ZaehlModell>("moondream");
+  const [foto, setFoto] = useState<Foto | null>(null);
+  const [ergebnis, setErgebnis] = useState<{ ziele: ZaehlZiel[]; punkte: ZaehlPunkt[]; modell: ZaehlModell } | null>(null);
+  const [laeuft, setLaeuft] = useState<string | null>(null);
   const [fehler, setFehler] = useState<string | null>(null);
+  const [aktivesZiel, setAktivesZiel] = useState(0);
   const [uebernommen, setUebernommen] = useState(false);
+  const bildRef = useRef<HTMLDivElement>(null);
 
-  const bildUrl = schritt.art === "fertig" ? schritt.bild : null;
-  useEffect(() => () => void (bildUrl && URL.revokeObjectURL(bildUrl)), [bildUrl]);
+  // Vorschlag neu bilden, wenn das Regal neu geladen wurde und noch nichts gezählt ist
+  const vorschlag = useMemo(() => zieleVorschlagen(stuecke), [stuecke]);
+  useEffect(() => {
+    if (!ergebnis) setZiele(vorschlag);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vorschlag]);
 
-  async function zaehlen(datei: File | undefined) {
-    if (!datei) return;
+  // Nicht eingerichtetes Modell nicht vorwählen
+  useEffect(() => {
+    if (verfuegbar && !verfuegbar[modell]) {
+      const anderes: ZaehlModell = modell === "moondream" ? "gemini" : "moondream";
+      if (verfuegbar[anderes]) setModell(anderes);
+    }
+  }, [verfuegbar, modell]);
+
+  const fotoUrl = foto?.url;
+  useEffect(() => () => void (fotoUrl && URL.revokeObjectURL(fotoUrl)), [fotoUrl]);
+
+  const zuordnung = useMemo(
+    () => (foto && ergebnis ? codesZuPunkten(ergebnis.punkte, foto.codes, foto.breite, foto.hoehe) : new Map<number, string>()),
+    [foto, ergebnis],
+  );
+
+  async function zaehlen(f: Foto, mit: ZaehlModell) {
+    const aktive = ziele.map((z) => ({ ...z, text: z.text.trim() })).filter((z) => z.text);
+    if (!aktive.length) {
+      setFehler("Mindestens eine Art angeben, die gezählt werden soll");
+      return;
+    }
     setFehler(null);
     setUebernommen(false);
-    let bild: ImageBitmap | null = null;
+    setLaeuft(`${ZAEHL_MODELL_NAME[mit]} zählt …`);
     try {
-      setSchritt({ art: "laeuft", text: "Foto wird vorbereitet …" });
-      bild = await verkleinern(datei);
-      setSchritt({ art: "laeuft", text: "Etiketten werden gelesen …" });
-      const funde = await erkennen(bild);
-      setSchritt({ art: "laeuft", text: "Zählmodell wird geladen …" });
-      const kaesten = await gegenstaendeFinden(bild, (anteil) =>
-        setSchritt({ art: "laeuft", text: anteil < 1 ? "Zählmodell wird geladen (nur beim ersten Mal) …" : "Gegenstände werden gezählt …", anteil }),
-      );
-      const e = auswerten(kaesten, funde, bild.width, bild.height);
-      setSchritt({ art: "fertig", e, bild: await alsBildUrl(bild), breite: bild.width, hoehe: bild.height });
+      const r = await senden<ZaehlAntwort>("/zaehlen", {
+        modell: mit,
+        bild: f.dataUrl,
+        breite: f.breite,
+        hoehe: f.hoehe,
+        ziele: aktive.map((z) => z.text),
+      });
+      setErgebnis({ ziele: aktive, punkte: r.punkte, modell: r.modell });
+      setAktivesZiel(0);
       signalFertig();
-    } catch (err) {
-      setSchritt({ art: "leer" });
-      setFehler(err instanceof Error && err.message ? err.message : "Zählen hat nicht geklappt");
+    } catch (e) {
+      setFehler(fehlerText(e));
     } finally {
-      bild?.close();
+      setLaeuft(null);
     }
   }
 
+  async function fotoGewaehlt(datei: File | undefined) {
+    if (!datei) return;
+    setFehler(null);
+    setLaeuft("Foto wird vorbereitet …");
+    try {
+      const f = await fotoVorbereiten(datei);
+      setFoto(f);
+      setErgebnis(null);
+      await zaehlen(f, modell);
+    } catch (e) {
+      setLaeuft(null);
+      setFehler(fehlerText(e));
+    }
+  }
+
+  function punktSetzen(ev: MouseEvent<HTMLDivElement>) {
+    if (!ergebnis || !bildRef.current) return;
+    const r = bildRef.current.getBoundingClientRect();
+    const x = (ev.clientX - r.left) / r.width;
+    const y = (ev.clientY - r.top) / r.height;
+    if (x < 0 || x > 1 || y < 0 || y > 1) return;
+    setErgebnis({ ...ergebnis, punkte: [...ergebnis.punkte, { x, y, ziel: ergebnis.ziele.length ? aktivesZiel : null }] });
+  }
+
+  function punktEntfernen(i: number) {
+    if (!ergebnis) return;
+    setErgebnis({ ...ergebnis, punkte: ergebnis.punkte.filter((_, j) => j !== i) });
+  }
+
   const fotoKnopf = (text: string, art: "primaer" | "zweit") => (
-    <label className={kl("flex h-14 w-full cursor-pointer items-center justify-center gap-2.5 rounded-2xl text-base font-semibold transition active:scale-[0.97]", art === "primaer" ? "bg-primaer text-auf-primaer hover:bg-primaer-hover" : "border border-rand bg-flaeche shadow-karte hover:bg-flaeche-2")}>
+    <label
+      className={kl(
+        "flex h-14 w-full cursor-pointer items-center justify-center gap-2.5 rounded-2xl text-base font-semibold transition active:scale-[0.97]",
+        art === "primaer" ? "bg-primaer text-auf-primaer hover:bg-primaer-hover" : "border border-rand bg-flaeche shadow-karte hover:bg-flaeche-2",
+        laeuft && "pointer-events-none opacity-50",
+      )}
+    >
       <Camera className="size-5" />
       {text}
       <input
@@ -95,12 +190,50 @@ export function RegalZaehlen({
         accept="image/*"
         capture="environment"
         className="sr-only"
+        disabled={!!laeuft}
         onChange={(ev) => {
-          void zaehlen(ev.target.files?.[0]);
+          void fotoGewaehlt(ev.target.files?.[0]);
           ev.target.value = "";
         }}
       />
     </label>
+  );
+
+  const modellOptionen = (["moondream", "gemini"] as const)
+    .filter((m) => !verfuegbar || verfuegbar[m])
+    .map((m) => ({ wert: m, text: m === "moondream" ? "Moondream" : "Gemini" }));
+
+  const zieleBearbeiten = (
+    <div className="space-y-2.5">
+      <h3 className="text-[13px] font-semibold uppercase tracking-wider text-gedaempft">Was gezählt wird</h3>
+      {ziele.map((z, i) => (
+        <div key={i} className="flex items-center gap-2">
+          <span aria-hidden className="size-3.5 shrink-0 rounded-full" style={{ background: FARBEN[i % FARBEN.length] }} />
+          <Eingabe
+            value={z.text}
+            maxLength={MAX_ZIEL_TEXT}
+            aria-label={`Art ${i + 1}`}
+            placeholder="z. B. Akkuschrauber im blauen Koffer"
+            onChange={(ev) => setZiele(ziele.map((y, j) => (j === i ? { ...y, text: ev.target.value } : y)))}
+          />
+          {z.soll > 0 && <span className="shrink-0 text-[13px] text-gedaempft">{z.soll}×</span>}
+          <button
+            type="button"
+            aria-label={`Art ${i + 1} entfernen`}
+            onClick={() => setZiele(ziele.filter((_, j) => j !== i))}
+            className="flex size-11 shrink-0 items-center justify-center rounded-full text-gedaempft hover:bg-flaeche-2"
+          >
+            <X className="size-5" />
+          </button>
+        </div>
+      ))}
+      {ziele.length < MAX_ZIELE && (
+        <Knopf art="leise" symbol={<Plus className="size-5" />} onClick={() => setZiele([...ziele, { text: "", soll: 0 }])}>
+          Art hinzufügen
+        </Knopf>
+      )}
+      <p className="text-[12px] text-gedaempft">Vorschlag aus Kategorie, Name und Beschreibung der Stücke in diesem Regal. Genauer beschreiben hilft.</p>
+    </div>
   );
 
   return (
@@ -108,69 +241,118 @@ export function RegalZaehlen({
       <div className="space-y-5">
         {fehler && <FehlerHinweis text={fehler} />}
 
-        {schritt.art === "leer" && (
-          <>
-            <p className="text-[15px]">
-              Ein Foto vom ganzen Regal oder Fach aufnehmen. Die App zählt die Gegenstände darauf und zeigt, welche <b>kein lesbares Etikett</b> haben.
-            </p>
-            <ul className="space-y-1 text-[13px] text-gedaempft">
-              <li>· Gerade von vorne, gutes Licht, nichts verdeckt</li>
-              <li>· Lieber ein Fach pro Foto als das ganze Regal</li>
-              <li>· Läuft auf diesem Gerät – das Foto wird nicht hochgeladen</li>
-            </ul>
-            {fotoKnopf("Foto aufnehmen", "primaer")}
-          </>
-        )}
-
-        {schritt.art === "laeuft" && (
+        {laeuft && (
           <div className="flex flex-col items-center gap-4 py-8 text-center" aria-live="polite">
             <Kreisel />
-            <p className="text-[15px]">{schritt.text}</p>
-            {schritt.anteil !== undefined && schritt.anteil < 1 && (
-              <div className="h-2 w-48 overflow-hidden rounded-full bg-flaeche-2">
-                <div className="h-full rounded-full bg-primaer transition-[width]" style={{ width: `${Math.round(schritt.anteil * 100)}%` }} />
-              </div>
-            )}
+            <p className="text-[15px]">{laeuft}</p>
           </div>
         )}
 
-        {schritt.art === "fertig" && (
+        {!laeuft && !ergebnis && (
           <>
-            <div className="relative overflow-hidden rounded-2xl bg-flaeche-2">
-              <img src={schritt.bild} alt="Foto mit markierten Gegenständen" className="block w-full" />
-              {schritt.e.gegenstaende.map((g, i) => (
-                <span
-                  key={i}
-                  aria-hidden
-                  className={kl("absolute rounded-md border-2", g.code ? "border-erfolg bg-erfolg/10" : "border-warnung bg-warnung/20")}
-                  style={{
-                    left: `${(g.x1 / schritt.breite) * 100}%`,
-                    top: `${(g.y1 / schritt.hoehe) * 100}%`,
-                    width: `${((g.x2 - g.x1) / schritt.breite) * 100}%`,
-                    height: `${((g.y2 - g.y1) / schritt.hoehe) * 100}%`,
-                  }}
-                />
-              ))}
-            </div>
-
-            <div className="grid grid-cols-3 gap-2 text-center">
-              <Zahl wert={schritt.e.geschaetzt} text="im Bild" />
-              <Zahl wert={schritt.e.mitCode} text="mit Etikett" ton="erfolg" />
-              <Zahl wert={schritt.e.ohneCode} text="ohne Etikett" ton={schritt.e.ohneCode ? "warnung" : undefined} />
-            </div>
-
             <p className="text-[15px]">
-              Laut System gehören hier <b>{anzahl(erwartet, "Stück", "Stücke")}</b> hin, gescannt sind {gescannt}.
-              {schritt.e.geschaetzt > erwartet && " Im Bild ist mehr, als erwartet wird – vielleicht liegt hier etwas, das woanders eingetragen ist."}
-              {schritt.e.geschaetzt < erwartet && " Im Bild ist weniger, als erwartet wird – fehlt etwas, oder ist es verdeckt?"}
+              Foto vom Regal oder Fach aufnehmen. Jedes gefundene Teil bekommt einen <b>Punkt</b>. Fehlende Punkte setzt man durch Tippen, falsche
+              entfernt man durch Tippen.
+            </p>
+            {zieleBearbeiten}
+            {modellOptionen.length > 1 && <Segmente beschriftung="Modell" wert={modell} aendern={setModell} optionen={modellOptionen} />}
+            {verfuegbar && !verfuegbar.moondream && !verfuegbar.gemini && <FehlerHinweis text="Kein Zählmodell eingerichtet" />}
+            <p className="text-[12px] text-gedaempft">
+              Das Foto wird zum Zählen an {modell === "gemini" ? "Google (über OpenRouter)" : "Cloudflare Workers AI"} geschickt und nicht gespeichert.
+            </p>
+            {foto && (
+              <Knopf art="primaer" groesse="l" breit symbol={<RefreshCw className="size-5" />} onClick={() => void zaehlen(foto, modell)}>
+                Mit demselben Foto zählen
+              </Knopf>
+            )}
+            {fotoKnopf(foto ? "Neues Foto" : "Foto aufnehmen", foto ? "zweit" : "primaer")}
+          </>
+        )}
+
+        {!laeuft && ergebnis && foto && (
+          <>
+            <div
+              ref={bildRef}
+              role="group"
+              aria-label="Foto mit Punkten. Tippen setzt einen Punkt, Tippen auf einen Punkt entfernt ihn."
+              onClick={punktSetzen}
+              className="relative cursor-crosshair touch-manipulation select-none overflow-hidden rounded-2xl bg-flaeche-2"
+            >
+              <img src={foto.url} alt="" draggable={false} className="block w-full" />
+              {ergebnis.punkte.map((p, i) => {
+                const farbe = p.ziel === null ? OHNE_ART : FARBEN[p.ziel % FARBEN.length];
+                const code = zuordnung.get(i);
+                return (
+                  <button
+                    key={i}
+                    type="button"
+                    aria-label={`Punkt ${i + 1}${code ? ` (Code ${code})` : ""} entfernen`}
+                    onClick={(ev) => {
+                      ev.stopPropagation();
+                      punktEntfernen(i);
+                    }}
+                    className="absolute flex size-7 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 border-white text-[11px] font-bold text-white shadow-[0_1px_4px_rgb(0_0_0/0.5)]"
+                    style={{
+                      left: `${p.x * 100}%`,
+                      top: `${p.y * 100}%`,
+                      background: farbe,
+                      outline: code ? "3px solid var(--erfolg)" : undefined,
+                      outlineOffset: 1,
+                    }}
+                  >
+                    {i + 1}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="flex items-end justify-between gap-3">
+              <div>
+                <div className="zahlen text-4xl font-bold">{ergebnis.punkte.length}</div>
+                <div className="text-[13px] text-gedaempft">
+                  gezählt · {ZAEHL_MODELL_NAME[ergebnis.modell]}
+                  {zuordnung.size > 0 && ` · ${zuordnung.size} mit Code`}
+                </div>
+              </div>
+            </div>
+
+            <div className="divide-y divide-rand overflow-hidden rounded-2xl border border-rand">
+              {ergebnis.ziele.map((z, i) => {
+                const ist = ergebnis.punkte.filter((p) => p.ziel === i).length;
+                const aktiv = aktivesZiel === i;
+                return (
+                  <button
+                    key={i}
+                    type="button"
+                    aria-pressed={aktiv}
+                    onClick={() => setAktivesZiel(i)}
+                    className={kl("flex min-h-14 w-full items-center gap-3 px-4 py-2 text-left", aktiv && "bg-primaer-weich")}
+                  >
+                    <span aria-hidden className="size-3.5 shrink-0 rounded-full" style={{ background: FARBEN[i % FARBEN.length] }} />
+                    <span className="min-w-0 flex-1 truncate text-[15px]">{z.text}</span>
+                    <span
+                      className={kl(
+                        "zahlen shrink-0 text-[15px] font-bold",
+                        z.soll > 0 && (ist === z.soll ? "text-erfolg-text" : "text-warnung-text"),
+                      )}
+                    >
+                      {ist}
+                      {z.soll > 0 && <span className="font-normal text-gedaempft"> / {z.soll}</span>}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            <p className="text-[13px] text-gedaempft">
+              Art antippen, dann ins Foto tippen, um einen fehlenden Punkt dieser Art zu setzen. Zahl hinter dem Schrägstrich = laut System hier.
             </p>
             <p className="flex items-start gap-2 text-[13px] text-gedaempft">
               <Sparkles className="mt-0.5 size-4 shrink-0" />
-              Automatisch gezählt, kann sich verzählen. Für die Inventur zählen nur gescannte Codes.
+              Automatisch gezählt, bitte prüfen. Für die Inventur zählen nur gescannte Codes.
             </p>
 
             <div className="space-y-2.5">
-              {schritt.e.codes.length > 0 && (
+              {foto.codes.length > 0 && (
                 <Knopf
                   art="primaer"
                   groesse="l"
@@ -178,27 +360,34 @@ export function RegalZaehlen({
                   disabled={uebernommen}
                   symbol={<ScanLine className="size-5" />}
                   onClick={() => {
-                    beiCodes(schritt.e.codes);
+                    beiCodes([...new Set(foto.codes.map((c) => c.code))]);
                     setUebernommen(true);
                   }}
                 >
-                  {uebernommen ? "Übernommen" : `${anzahl(schritt.e.codes.length, "gelesenen Code", "gelesene Codes")} übernehmen`}
+                  {uebernommen ? "Übernommen" : `${anzahl(new Set(foto.codes.map((c) => c.code)).size, "gelesenen Code", "gelesene Codes")} übernehmen`}
                 </Knopf>
               )}
+              {modellOptionen.length > 1 && (
+                <Knopf
+                  breit
+                  symbol={<RefreshCw className="size-5" />}
+                  onClick={() => {
+                    const anderes: ZaehlModell = ergebnis.modell === "moondream" ? "gemini" : "moondream";
+                    setModell(anderes);
+                    void zaehlen(foto, anderes);
+                  }}
+                >
+                  Mit {ergebnis.modell === "moondream" ? "Gemini" : "Moondream"} nochmal zählen
+                </Knopf>
+              )}
+              <Knopf breit art="leise" onClick={() => setErgebnis(null)}>
+                Arten ändern
+              </Knopf>
               {fotoKnopf("Neues Foto", "zweit")}
             </div>
           </>
         )}
       </div>
     </Blatt>
-  );
-}
-
-function Zahl({ wert, text, ton }: { wert: number; text: string; ton?: "erfolg" | "warnung" }) {
-  return (
-    <div className={kl("rounded-2xl px-2 py-3", ton === "erfolg" ? "bg-erfolg-weich text-erfolg-text" : ton === "warnung" ? "bg-warnung-weich text-warnung-text" : "bg-flaeche-2")}>
-      <div className="zahlen text-2xl font-bold">{wert}</div>
-      <div className="text-[12px]">{text}</div>
-    </div>
   );
 }

@@ -20,6 +20,7 @@ import { scanRouten } from "./routen/scan";
 import { stueckeRouten } from "./routen/stuecke";
 import { uebersichtRouten } from "./routen/uebersicht";
 import { vermisstRouten } from "./routen/vermisst";
+import { zaehlenRouten } from "./routen/zaehlen";
 
 const app = new Hono<AppEnv>().basePath("/api");
 
@@ -46,6 +47,7 @@ app.route("/ausleihen", ausleihenRouten);
 app.route("/vermisst", vermisstRouten);
 app.route("/pruefungen", pruefungenRouten);
 app.route("/inventur", inventurRouten);
+app.route("/zaehlen", zaehlenRouten);
 app.route("/uebersicht", uebersichtRouten);
 
 app.notFound((c) => c.json({ fehler: "Nicht gefunden" }, 404));
