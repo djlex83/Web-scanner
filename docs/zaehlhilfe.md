@@ -30,6 +30,12 @@ Ist kein `OPENROUTER_API_KEY` gesetzt, zeigt die App nur Moondream an. Optional 
 
 **Gemini einrichten:** Cloudflare → *Workers & Pages → web-scanner → Einstellungen → Variablen und Geheimnisse → Hinzufügen* → Typ **Geheimnis**, Name `OPENROUTER_API_KEY`, Wert = Schlüssel von openrouter.ai. Speichern und neu bereitstellen.
 
+## Fehlersuche
+
+- **In der App:** Unter dem Ergebnis klappt **„Technische Details“** auf (bei 0 Punkten automatisch). Dort steht pro Aufruf, welcher Begriff ans Modell ging (bei Moondream auf Englisch), wie viele Punkte kamen, wie lange es dauerte und die gekürzte Rohantwort oder der Fehler. **„Details kopieren“** legt alles als Text in die Zwischenablage.
+- **Im Cloudflare-Log:** *Workers & Pages → web-scanner → Logs* – jede Zählung schreibt eine Zeile `Zählhilfe …` mit denselben Angaben (ohne Foto).
+- **Moondream versucht nacheinander:** den vollen Text, dann nur den Begriff vor dem Doppelpunkt, und wenn keine Art etwas findet, zum Schluss allgemein „individual item on the shelf“ (graue Punkte ohne Art). Kommt von keinem Aufruf eine Antwort, zeigt die App den Fehler statt „nichts gefunden“.
+
 ## Schutz
 
 - Nur angemeldete Personen mit dem Recht „buchen“.

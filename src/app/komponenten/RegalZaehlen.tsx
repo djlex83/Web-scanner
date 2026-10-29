@@ -1,4 +1,4 @@
-import { Camera, Plus, RefreshCw, ScanLine, Sparkles, X } from "lucide-react";
+import { Camera, Copy, Plus, RefreshCw, ScanLine, Sparkles, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import type { Stueck } from "../../gemeinsam/typen";
 import {
@@ -9,6 +9,7 @@ import {
   zieleVorschlagen,
   type CodeOrt,
   type ZaehlAntwort,
+  type ZaehlDiagnose,
   type ZaehlModell,
   type ZaehlPunkt,
   type ZaehlZiel,
@@ -89,7 +90,7 @@ export function RegalZaehlen({
   const [ziele, setZiele] = useState<ZaehlZiel[]>(() => zieleVorschlagen(stuecke));
   const [modell, setModell] = useState<ZaehlModell>("moondream");
   const [foto, setFoto] = useState<Foto | null>(null);
-  const [ergebnis, setErgebnis] = useState<{ ziele: ZaehlZiel[]; punkte: ZaehlPunkt[]; modell: ZaehlModell } | null>(null);
+  const [ergebnis, setErgebnis] = useState<{ ziele: ZaehlZiel[]; punkte: ZaehlPunkt[]; modell: ZaehlModell; diagnose: ZaehlDiagnose | null } | null>(null);
   const [laeuft, setLaeuft] = useState<string | null>(null);
   const [fehler, setFehler] = useState<string | null>(null);
   const [aktivesZiel, setAktivesZiel] = useState(0);
@@ -136,7 +137,7 @@ export function RegalZaehlen({
         hoehe: f.hoehe,
         ziele: aktive.map((z) => z.text),
       });
-      setErgebnis({ ziele: aktive, punkte: r.punkte, modell: r.modell });
+      setErgebnis({ ziele: aktive, punkte: r.punkte, modell: r.modell, diagnose: r.diagnose ?? null });
       setAktivesZiel(0);
       signalFertig();
     } catch (e) {
@@ -350,6 +351,12 @@ export function RegalZaehlen({
               <Sparkles className="mt-0.5 size-4 shrink-0" />
               Automatisch gezählt, bitte prüfen. Für die Inventur zählen nur gescannte Codes.
             </p>
+            {ergebnis.punkte.length === 0 && (
+              <p className="rounded-2xl bg-warnung-weich px-4 py-3 text-[15px] text-warnung-text">
+                Das Modell hat nichts gefunden. Kürzere, sichtbare Begriffe helfen oft (z. B. „Koffer“, „Karton“). Unten stehen die Details.
+              </p>
+            )}
+            {ergebnis.diagnose && <Diagnose d={ergebnis.diagnose} modell={ergebnis.modell} offen={ergebnis.punkte.length === 0} />}
 
             <div className="space-y-2.5">
               {foto.codes.length > 0 && (
@@ -389,5 +396,46 @@ export function RegalZaehlen({
         )}
       </div>
     </Blatt>
+  );
+}
+
+/** Was ans Modell ging und was zurückkam – zum Prüfen und zum Weitergeben bei Problemen. */
+function Diagnose({ d, modell, offen }: { d: ZaehlDiagnose; modell: ZaehlModell; offen: boolean }) {
+  const [kopiert, setKopiert] = useState(false);
+  const text = JSON.stringify({ modell, ...d }, null, 2);
+  return (
+    <details open={offen} className="rounded-2xl border border-rand">
+      <summary className="flex min-h-12 cursor-pointer items-center px-4 text-[13px] font-semibold text-gedaempft">Technische Details</summary>
+      <div className="space-y-3 border-t border-rand px-4 py-3 text-[13px]">
+        <p className="text-gedaempft">
+          Foto {d.breite} × {d.hoehe} px, {d.bildKb} KB · {d.versuche.length} {d.versuche.length === 1 ? "Aufruf" : "Aufrufe"}
+        </p>
+        <ul className="space-y-2">
+          {d.versuche.map((v, i) => (
+            <li key={i} className="rounded-xl bg-flaeche-2 px-3 py-2">
+              <div className="flex justify-between gap-2">
+                <span className="min-w-0 font-semibold break-words">
+                  {v.ziel === null ? "Allgemein" : `Art ${v.ziel + 1}`}: „{v.gesendet}“
+                </span>
+                <span className="shrink-0">
+                  {v.punkte} Punkte · {v.dauerMs} ms
+                </span>
+              </div>
+              {v.fehler && <div className="mt-1 text-gefahr-text break-words">Fehler: {v.fehler}</div>}
+              {v.antwort && <pre className="mt-1 max-h-32 overflow-auto whitespace-pre-wrap break-all font-mono text-[11px] text-gedaempft">{v.antwort}</pre>}
+            </li>
+          ))}
+        </ul>
+        <Knopf
+          breit
+          symbol={<Copy className="size-5" />}
+          onClick={() => {
+            void navigator.clipboard?.writeText(text).then(() => setKopiert(true), () => setKopiert(false));
+          }}
+        >
+          {kopiert ? "Kopiert" : "Details kopieren"}
+        </Knopf>
+      </div>
+    </details>
   );
 }
