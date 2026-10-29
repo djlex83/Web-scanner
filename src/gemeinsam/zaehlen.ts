@@ -27,9 +27,65 @@ export interface ZaehlPunkt {
   ziel: number | null;
 }
 
+/** Ein Aufruf beim Modell – für die Fehlersuche in der App und im Cloudflare-Log. */
+export interface ZaehlVersuch {
+  /** Index der Art, null = allgemeiner Notfall-Versuch */
+  ziel: number | null;
+  /** was tatsächlich ans Modell ging (bei Moondream: übersetzt) */
+  gesendet: string;
+  punkte: number;
+  dauerMs: number;
+  fehler?: string;
+  /** gekürzte Rohantwort */
+  antwort?: string;
+}
+
+export interface ZaehlDiagnose {
+  bildKb: number;
+  breite: number;
+  hoehe: number;
+  versuche: ZaehlVersuch[];
+}
+
 export interface ZaehlAntwort {
   modell: ZaehlModell;
   punkte: ZaehlPunkt[];
+  diagnose: ZaehlDiagnose;
+}
+
+/** Rohantwort für die Diagnose: JSON, gekürzt, ohne Bilddaten. */
+export function antwortKurz(r: unknown, max = 600): string {
+  let t: string;
+  try {
+    t = typeof r === "string" ? r : JSON.stringify(r);
+  } catch {
+    t = String(r);
+  }
+  t = (t ?? "").replace(/data:image\/[a-z]+;base64,[A-Za-z0-9+/=]+/g, "data:image/…");
+  return t.length > max ? t.slice(0, max) + " …" : t;
+}
+
+/**
+ * Punkte aus einer Moondream-Antwort holen, egal ob direkt (`points`), verschachtelt
+ * (`result.points`, `output.points`) oder als Paare `[x, y]`.
+ */
+export function moondreamRohpunkte(r: unknown): { x: number; y: number }[] {
+  const o = r as Record<string, unknown> | null;
+  const kandidat = o?.points ?? (o?.result as Record<string, unknown> | undefined)?.points ?? (o?.output as Record<string, unknown> | undefined)?.points;
+  if (!Array.isArray(kandidat)) return [];
+  return kandidat
+    .map((p) => (Array.isArray(p) ? { x: Number(p[0]), y: Number(p[1]) } : { x: Number((p as { x?: unknown })?.x), y: Number((p as { y?: unknown })?.y) }))
+    .filter((p) => Number.isFinite(p.x) && Number.isFinite(p.y));
+}
+
+/**
+ * Was Moondream nacheinander versucht, bis es Punkte findet: der volle Text,
+ * dann nur der Teil vor dem Doppelpunkt (Kategorie bzw. Name). Kurze Begriffe findet es oft besser.
+ */
+export function moondreamKandidaten(englisch: string): string[] {
+  const voll = englisch.replace(/\s+/g, " ").trim();
+  const kurz = voll.split(":")[0]!.trim();
+  return [...new Set([voll, kurz].filter(Boolean))];
 }
 
 export interface ZielQuelle {

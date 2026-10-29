@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
+  antwortKurz,
   codesZuPunkten,
   doppeltePunkteEntfernen,
   geminiAnweisung,
   geminiPunkte,
   MAX_ZIELE,
+  moondreamKandidaten,
   moondreamPunkte,
+  moondreamRohpunkte,
   zieleVorschlagen,
 } from "../src/gemeinsam/zaehlen";
 import { adminEinrichten, Client } from "./hilfen";
@@ -66,6 +69,26 @@ describe("Zählhilfe: Antworten der Modelle", () => {
   });
 });
 
+describe("Zählhilfe: Moondream robust lesen", () => {
+  it("findet Punkte direkt, verschachtelt und als Paare", () => {
+    expect(moondreamRohpunkte({ points: [{ x: 0.1, y: 0.2 }] })).toEqual([{ x: 0.1, y: 0.2 }]);
+    expect(moondreamRohpunkte({ result: { points: [[0.3, 0.4]] } })).toEqual([{ x: 0.3, y: 0.4 }]);
+    expect(moondreamRohpunkte({ output: { points: [{ x: "0.5", y: 0.6 }] } })).toEqual([{ x: 0.5, y: 0.6 }]);
+    expect(moondreamRohpunkte({ points: null, finish_reason: "stop" })).toEqual([]);
+    expect(moondreamRohpunkte(null)).toEqual([]);
+  });
+
+  it("versucht erst den vollen Text, dann den Begriff vor dem Doppelpunkt", () => {
+    expect(moondreamKandidaten("Power tools: cordless drill, blue case")).toEqual(["Power tools: cordless drill, blue case", "Power tools"]);
+    expect(moondreamKandidaten("  suitcase ")).toEqual(["suitcase"]);
+  });
+
+  it("kürzt Rohantworten und entfernt Bilddaten", () => {
+    expect(antwortKurz({ image: "data:image/jpeg;base64,AAAA", points: [] })).toBe('{"image":"data:image/…","points":[]}');
+    expect(antwortKurz("x".repeat(700)).length).toBeLessThan(610);
+  });
+});
+
 describe("Zählhilfe: Punkte und Codes", () => {
   it("führt dasselbe Teil unter zwei Arten zusammen, lässt Nachbarn stehen", () => {
     const punkte = [
@@ -112,6 +135,13 @@ describe("Zählhilfe: Schnittstelle", () => {
     expect((await admin.post("/zaehlen", { modell: "moondream", bild: "http://x", breite: 640, hoehe: 480, ziele: ["Koffer"] })).status).toBe(400);
     expect((await admin.post("/zaehlen", { modell: "moondream", bild, breite: 640, hoehe: 480, ziele: [] })).status).toBe(400);
     expect((await admin.post("/zaehlen", { modell: "anders", bild, breite: 640, hoehe: 480, ziele: ["Koffer"] })).status).toBe(400);
+  });
+
+  it("Moondream ohne erreichbares Workers AI meldet den Fehler statt „nichts gefunden“", async () => {
+    const admin = await adminEinrichten();
+    const r = await admin.post("/zaehlen", { modell: "moondream", bild, breite: 640, hoehe: 480, ziele: ["Koffer"] });
+    expect(r.status).toBe(502);
+    expect(r.daten.fehler).toMatch(/^Moondream hat nicht geantwortet: ./);
   });
 
   it("Gemini ohne Schlüssel ist nicht eingerichtet", async () => {
