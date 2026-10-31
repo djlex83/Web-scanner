@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import type { Stueck } from "../../gemeinsam/typen";
 import {
   codesZuPunkten,
+  aktiveZiele,
   MAX_ZIEL_TEXT,
   MAX_ZIELE,
   ZAEHL_MODELL_NAME,
@@ -28,8 +29,18 @@ import { Knopf } from "../ui/knopf";
 import { FehlerHinweis, Kreisel } from "../ui/zustand";
 import { KameraAufnahme } from "./KameraAufnahme";
 
-/** Größer bringt den Modellen kaum etwas, kostet aber Upload und Tokens. */
-const MAX_SEITE = 1280;
+/**
+ * Längste Bildseite, die ans Modell geht. 1600 px: In vollen Regalen (30+ Teile) bleiben so je Teil
+ * noch gut 50 px; größer kostet Upload und Tokens, ohne dass die Modelle merklich besser zählen.
+ */
+const MAX_SEITE = 1600;
+
+/** Leeres Eingabefeld, wenn das Regal laut System leer ist – dann trägt man selbst ein, was gezählt wird. */
+const LEERE_ART: ZaehlZiel = { text: "", soll: 0 };
+const vorschlagFuer = (stuecke: Stueck[]): ZaehlZiel[] => {
+  const v = zieleVorschlagen(stuecke);
+  return v.length ? v : [LEERE_ART];
+};
 
 /** Farbe je Art – kräftig genug für helle und dunkle Fotos, Punkte haben zusätzlich einen weißen Rand. */
 const FARBEN = ["#4f46e5", "#db2777", "#0891b2", "#ea580c", "#65a30d", "#9333ea"];
@@ -85,7 +96,7 @@ async function fotoVorbereiten(datei: File): Promise<Foto> {
 }
 
 /**
- * Zählhilfe für die Inventur: Foto vom Regal → ein Punkt je Teil (Moondream oder Gemini).
+ * Zählhilfe für die Inventur: Foto vom Regal → ein Punkt je Teil (Bildmodell bei Cloudflare oder Gemini).
  * Punkte lassen sich per Tippen setzen und entfernen. Bucht nichts.
  */
 export function RegalZaehlen({
@@ -101,7 +112,7 @@ export function RegalZaehlen({
   beiCodes: (codes: string[]) => void;
 }) {
   const { daten: verfuegbar } = useLaden<Record<ZaehlModell, boolean>>(offen ? "/zaehlen/modelle" : null);
-  const [ziele, setZiele] = useState<ZaehlZiel[]>(() => zieleVorschlagen(stuecke));
+  const [ziele, setZiele] = useState<ZaehlZiel[]>(() => vorschlagFuer(stuecke));
   const [modell, setModellRoh] = useState<ZaehlModell>(() => gemerktesModell() ?? ZAEHL_MODELLE[0]);
   const setModell = (m: ZaehlModell) => {
     setModellRoh(m);
@@ -121,11 +132,16 @@ export function RegalZaehlen({
   const bildRef = useRef<HTMLDivElement>(null);
 
   // Vorschlag neu bilden, wenn das Regal neu geladen wurde und noch nichts gezählt ist
-  const vorschlag = useMemo(() => zieleVorschlagen(stuecke), [stuecke]);
+  const vorschlag = useMemo(() => vorschlagFuer(stuecke), [stuecke]);
   useEffect(() => {
     if (!ergebnis) setZiele(vorschlag);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vorschlag]);
+
+  // Ohne mindestens eine eingetragene Art ist ein Foto sinnlos – die Fotoknöpfe bleiben dann gesperrt,
+  // statt erst nach der Aufnahme einen Fehler zu zeigen.
+  const aktive = aktiveZiele(ziele);
+  const bereit = aktive.length > 0;
 
   // Nicht eingerichtetes Modell nicht vorwählen: dann das erste eingerichtete in der Reihenfolge der Liste
   useEffect(() => {
@@ -144,8 +160,8 @@ export function RegalZaehlen({
   );
 
   async function zaehlen(f: Foto, mit: ZaehlModell) {
-    const aktive = ziele.map((z) => ({ ...z, text: z.text.trim() })).filter((z) => z.text);
-    if (!aktive.length) {
+    // Die Knöpfe sind ohne Art gesperrt; das hier fängt nur Sonderfälle ab
+    if (!bereit) {
       setFehler("Mindestens eine Art angeben, die gezählt werden soll");
       return;
     }
@@ -199,11 +215,12 @@ export function RegalZaehlen({
     setErgebnis({ ...ergebnis, punkte: ergebnis.punkte.filter((_, j) => j !== i) });
   }
 
+  const gesperrt = !!laeuft || !bereit;
   const knopfKlassen = (art: "primaer" | "zweit") =>
     kl(
       "flex h-14 min-w-0 flex-1 cursor-pointer items-center justify-center gap-2.5 rounded-2xl px-3 text-base font-semibold transition active:scale-[0.97]",
       art === "primaer" ? "bg-primaer text-auf-primaer hover:bg-primaer-hover" : "border border-rand bg-flaeche shadow-karte hover:bg-flaeche-2",
-      laeuft && "pointer-events-none opacity-50",
+      gesperrt && "pointer-events-none cursor-not-allowed opacity-50",
     );
 
   /**
@@ -213,38 +230,46 @@ export function RegalZaehlen({
    */
   const fotoKnopf = (text: string, quelle: "kamera" | "datei", art: "primaer" | "zweit") =>
     quelle === "kamera" && amRechner ? (
-      <button type="button" className={knopfKlassen(art)} disabled={!!laeuft} onClick={() => setKameraOffen(true)}>
+      <button type="button" className={knopfKlassen(art)} disabled={gesperrt} aria-describedby="foto-hinweis" onClick={() => setKameraOffen(true)}>
         <Camera className="size-5 shrink-0" />
         <span className="truncate">{text}</span>
       </button>
     ) : (
-    <label className={knopfKlassen(art)}>
-      {quelle === "kamera" ? <Camera className="size-5 shrink-0" /> : <ImageUp className="size-5 shrink-0" />}
-      <span className="truncate">{text}</span>
-      <input
-        type="file"
-        accept="image/*"
-        capture={quelle === "kamera" ? "environment" : undefined}
-        className="sr-only"
-        disabled={!!laeuft}
-        onChange={(ev) => {
-          void fotoGewaehlt(ev.target.files?.[0]);
-          ev.target.value = "";
-        }}
-      />
-    </label>
+      <label className={knopfKlassen(art)} aria-disabled={gesperrt || undefined}>
+        {quelle === "kamera" ? <Camera className="size-5 shrink-0" /> : <ImageUp className="size-5 shrink-0" />}
+        <span className="truncate">{text}</span>
+        <input
+          type="file"
+          accept="image/*"
+          capture={quelle === "kamera" ? "environment" : undefined}
+          className="sr-only"
+          disabled={gesperrt}
+          aria-describedby="foto-hinweis"
+          onChange={(ev) => {
+            void fotoGewaehlt(ev.target.files?.[0]);
+            ev.target.value = "";
+          }}
+        />
+      </label>
     );
 
   const fotoKnoepfe = (neu: boolean) => (
     <div className="space-y-2">
+      {!bereit && (
+        <p id="foto-hinweis" className="rounded-2xl bg-warnung-weich px-4 py-3 text-[15px] text-warnung-text">
+          Erst oben eintragen, was gezählt werden soll – dann lässt sich ein Foto aufnehmen.
+        </p>
+      )}
       <div className="flex gap-2">
         {fotoKnopf(neu ? "Neues Foto" : "Foto aufnehmen", "kamera", neu ? "zweit" : "primaer")}
         {fotoKnopf("Bild hochladen", "datei", "zweit")}
       </div>
-      {amRechner && (
-        <p className="text-[12px] text-gedaempft">
-          „Foto aufnehmen“ öffnet die Kamera des Rechners; am Mac lässt sich dort ein iPhone in der Nähe als Kamera wählen. „Bild hochladen“
-          nimmt eine Datei, z. B. per AirDrop vom iPhone.
+      {bereit && (
+        <p id="foto-hinweis" className="text-[12px] text-gedaempft">
+          Am besten eine Ablage pro Foto, möglichst gerade von vorn oder schräg von oben, mit gutem Licht. Angeschnittene Böden am Bildrand
+          werden nicht gezählt.
+          {amRechner &&
+            " „Foto aufnehmen“ öffnet die Kamera des Rechners; am Mac lässt sich dort ein iPhone in der Nähe wählen. „Bild hochladen“ nimmt eine Datei, z. B. per AirDrop."}
         </p>
       )}
     </div>
@@ -286,6 +311,7 @@ export function RegalZaehlen({
             value={z.text}
             maxLength={MAX_ZIEL_TEXT}
             aria-label={`Art ${i + 1}`}
+            aria-invalid={!bereit || undefined}
             placeholder="z. B. Akkuschrauber im blauen Koffer"
             onChange={(ev) => setZiele(ziele.map((y, j) => (j === i ? { ...y, text: ev.target.value } : y)))}
           />
@@ -305,7 +331,11 @@ export function RegalZaehlen({
           Art hinzufügen
         </Knopf>
       )}
-      <p className="text-[12px] text-gedaempft">Vorschlag aus Kategorie, Name und Beschreibung der Stücke in diesem Regal. Genauer beschreiben hilft.</p>
+      <p className="text-[12px] text-gedaempft">
+        {stuecke.length
+          ? "Vorschlag aus Kategorie, Name und Beschreibung der Stücke in diesem Regal. Beschreiben, woran man ein Teil erkennt (Form, Farbe, Größe), hilft mehr als Typnummern."
+          : "Laut System liegt hier nichts. Bitte eintragen, was gezählt werden soll, z. B. „Werkzeugaufnahme mit Kegelschaft in blauem Halteplatz“."}
+      </p>
     </div>
   );
 
@@ -336,7 +366,7 @@ export function RegalZaehlen({
               Das Foto wird zum Zählen an {modell === "gemini" ? "Google" : "Cloudflare Workers AI"} geschickt und nicht gespeichert.
             </p>
             {foto && (
-              <Knopf art="primaer" groesse="l" breit symbol={<RefreshCw className="size-5" />} onClick={() => void zaehlen(foto, modell)}>
+              <Knopf art="primaer" groesse="l" breit disabled={!bereit} symbol={<RefreshCw className="size-5" />} onClick={() => void zaehlen(foto, modell)}>
                 Mit demselben Foto zählen
               </Knopf>
             )}
@@ -361,7 +391,7 @@ export function RegalZaehlen({
                   <button
                     key={i}
                     type="button"
-                    aria-label={`Punkt ${i + 1}${code ? ` (Code ${code})` : ""} entfernen`}
+                    aria-label={`Punkt ${i + 1}${p.text ? ` („${p.text}“)` : ""}${code ? ` (Code ${code})` : ""} entfernen`}
                     onClick={(ev) => {
                       ev.stopPropagation();
                       punktEntfernen(i);
@@ -376,6 +406,12 @@ export function RegalZaehlen({
                     }}
                   >
                     {i + 1}
+                    {/* Vom Modell gelesene Beschriftung (z. B. „T808“) unter dem Punkt */}
+                    {p.text && (
+                      <span className="pointer-events-none absolute left-1/2 top-full mt-0.5 max-w-24 -translate-x-1/2 truncate rounded bg-black/70 px-1 text-[10px] font-semibold leading-4 text-white">
+                        {p.text}
+                      </span>
+                    )}
                   </button>
                 );
               })}
@@ -427,9 +463,20 @@ export function RegalZaehlen({
             </p>
             {ergebnis.punkte.length === 0 && (
               <p className="rounded-2xl bg-warnung-weich px-4 py-3 text-[15px] text-warnung-text">
-                Das Modell hat nichts gefunden. Kürzere, sichtbare Begriffe helfen oft (z. B. „Koffer“, „Karton“). Unten stehen die Details.
+                Das Modell hat nichts gefunden. Eine Beschreibung, woran man das Teil erkennt, oder ein anderes Zählmodell hilft oft. Unten stehen
+                die Details.
               </p>
             )}
+            {(() => {
+              // Nennt das Modell selbst eine andere Zahl als es Punkte gesetzt hat, hat es sich verzählt – Hinweis zum Nachprüfen
+              const genannt = ergebnis.diagnose?.versuche[0]?.anzahl;
+              const gesetzt = ergebnis.diagnose?.versuche[0]?.punkte;
+              return genannt !== undefined && gesetzt !== undefined && genannt !== gesetzt ? (
+                <p className="rounded-2xl bg-warnung-weich px-4 py-3 text-[15px] text-warnung-text">
+                  Das Modell nennt {genannt} Teile, hat aber {gesetzt} Punkte gesetzt. Bitte besonders genau prüfen.
+                </p>
+              ) : null;
+            })()}
             {ergebnis.diagnose && <Diagnose d={ergebnis.diagnose} modell={ergebnis.modell} offen={ergebnis.punkte.length === 0} />}
 
             <div className="space-y-2.5">
@@ -476,11 +523,9 @@ function Diagnose({ d, modell, offen }: { d: ZaehlDiagnose; modell: ZaehlModell;
           {d.versuche.map((v, i) => (
             <li key={i} className="rounded-xl bg-flaeche-2 px-3 py-2">
               <div className="flex justify-between gap-2">
-                <span className="min-w-0 font-semibold break-words">
-                  {v.ziel === null ? "Allgemein" : `Art ${v.ziel + 1}`}: „{v.gesendet}“
-                </span>
+                <span className="min-w-0 font-semibold break-words">{v.gesendet}</span>
                 <span className="shrink-0">
-                  {v.punkte} Punkte · {v.dauerMs} ms
+                  {v.punkte} Punkte{v.anzahl !== undefined && v.anzahl !== v.punkte && ` (genannt: ${v.anzahl})`} · {v.dauerMs} ms
                 </span>
               </div>
               {v.fehler && <div className="mt-1 text-gefahr-text break-words">Fehler: {v.fehler}</div>}

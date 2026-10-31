@@ -188,10 +188,10 @@ export const inventurSchema = z.object({
 /** Zählhilfe: Foto (verkleinert, als Data-URL) und die Arten, die gezählt werden sollen */
 export const zaehlenSchema = z.object({
   modell: z.enum(ZAEHL_MODELLE),
-  // ≤ 1280 px als JPEG/WebP sind ca. 100–400 KB; 2 MB Base64 lassen Luft
+  // ≤ 1600 px als JPEG sind ca. 200–700 KB; 3 MB Base64 lassen Luft
   bild: z
     .string()
-    .max(2_000_000, "Foto zu groß")
+    .max(3_000_000, "Foto zu groß")
     .regex(/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/, "Foto im falschen Format"),
   breite: z.number().int().min(32).max(4096),
   hoehe: z.number().int().min(32).max(4096),

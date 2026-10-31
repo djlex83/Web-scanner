@@ -1,25 +1,18 @@
 import { describe, expect, it } from "vitest";
 import {
+  aktiveZiele,
   antwortKurz,
   CLOUDFLARE_BILDMODELLE,
   cloudflareAntwortText,
   codesZuPunkten,
-  ZAEHL_MODELLE,
   datenUrlTeile,
   doppeltePunkteEntfernen,
-  geminiAnweisung,
-  geminiPunkte,
   googleAntwortText,
   googleModell,
   MAX_ZIELE,
-  moondreamAntwortFehler,
-  moondreamAntwortPunkte,
-  moondreamFrage,
-  moondreamKandidaten,
-  moondreamPunkte,
-  moondreamRohpunkte,
-  moondreamStromLesen,
-  textPunkte,
+  modellPunkte,
+  zaehlAnweisung,
+  ZAEHL_MODELLE,
   zieleVorschlagen,
 } from "../src/gemeinsam/zaehlen";
 import { adminEinrichten, Client } from "./hilfen";
@@ -53,24 +46,66 @@ describe("Zählhilfe: Arten aus den Stücken", () => {
     expect(zieleVorschlagen(viele)).toHaveLength(MAX_ZIELE);
     expect(zieleVorschlagen([])).toEqual([]);
   });
+
+  it("ohne eingetragene Art ist nichts zu zählen (Fotoknöpfe bleiben gesperrt)", () => {
+    expect(aktiveZiele([{ text: "  ", soll: 0 }])).toEqual([]);
+    expect(aktiveZiele([])).toEqual([]);
+    expect(aktiveZiele([{ text: " Koffer ", soll: 2 }, { text: "", soll: 0 }])).toEqual([{ text: "Koffer", soll: 2 }]);
+  });
+});
+
+describe("Zählhilfe: Anweisung an das Modell", () => {
+  it("nummeriert die Arten und verlangt Anzahl, Punkte und Beschriftung", () => {
+    const a = zaehlAnweisung(["Akkuschrauber", "Koffer"]);
+    expect(a).toContain("0: Akkuschrauber");
+    expect(a).toContain("1: Koffer");
+    expect(a).toContain('"anzahl"');
+    expect(a).toContain('"text"');
+    expect(a).toMatch(/Angeschnittene Böden/);
+  });
+
+  it("enthält keine Beispielzahlen, die ein Modell abschreiben könnte", () => {
+    // Moondream hat ein Beispiel mit zwei Punkten wörtlich übernommen und immer 2 gezählt
+    const a = zaehlAnweisung(["Gleiter"]);
+    expect(a).not.toMatch(/"(?:y|x|anzahl|ziel)"\s*:\s*\d/);
+    expect(a).not.toMatch(/\{\s*"/);
+  });
 });
 
 describe("Zählhilfe: Antworten der Modelle", () => {
-  it("Moondream: normierte Punkte bleiben, Pixel werden umgerechnet, Ausreißer fallen weg", () => {
-    expect(moondreamPunkte([{ x: 0.25, y: 0.5 }, { x: 1.2, y: 0.5 }], 2, 1000, 800)).toEqual([{ x: 0.25, y: 0.5, ziel: 2 }]);
-    expect(moondreamPunkte([{ x: 500, y: 400 }], 0, 1000, 800)).toEqual([{ x: 0.5, y: 0.5, ziel: 0 }]);
-    expect(moondreamPunkte(null, 0, 10, 10)).toEqual([]);
-  });
-
-  it("Gemini: liest y/x auf 0–1000, auch als point-Array, auch in Code-Zaun", () => {
+  it("liest y/x auf 0–1000, auch als point-Array, auch in Code-Zaun", () => {
     const text = '```json\n{"punkte":[{"ziel":1,"y":250,"x":500},{"ziel":7,"point":[100,900]},{"ziel":0,"y":1200,"x":10}]}\n```';
-    expect(geminiPunkte(text, 2)).toEqual([
+    expect(modellPunkte(text, 2).punkte).toEqual([
       { x: 0.5, y: 0.25, ziel: 1 },
       { x: 0.9, y: 0.1, ziel: null },
     ]);
-    expect(geminiPunkte('[{"ziel":0,"y":0,"x":0}]', 1)).toEqual([{ x: 0, y: 0, ziel: 0 }]);
-    expect(() => geminiPunkte("kein json", 1)).toThrow();
-    expect(() => geminiPunkte('{"anders":1}', 1)).toThrow();
+    expect(modellPunkte('[{"ziel":0,"y":0,"x":0}]', 1).punkte).toEqual([{ x: 0, y: 0, ziel: 0 }]);
+    expect(() => modellPunkte("kein json", 1)).toThrow();
+    expect(() => modellPunkte('{"anders":1}', 1)).toThrow();
+  });
+
+  it("liest Text um das JSON herum, die genannte Anzahl und Beschriftungen", () => {
+    const r = modellPunkte(
+      'Ich sehe drei Gleiter:\n{"anzahl":3,"punkte":[{"ziel":0,"y":500,"x":300,"text":"  T808 "},{"ziel":0,"y":500,"x":600,"text":""},{"ziel":0,"y":600,"x":450,"text":"' +
+        "x".repeat(40) +
+        '"}]}\nFertig.',
+      1,
+    );
+    expect(r.anzahl).toBe(3);
+    expect(r.punkte[0]).toEqual({ x: 0.3, y: 0.5, ziel: 0, text: "T808" });
+    expect(r.punkte[1]).toEqual({ x: 0.6, y: 0.5, ziel: 0 });
+    expect(r.punkte[2]!.text).toHaveLength(24);
+    expect(modellPunkte('{"anzahl":"viele","punkte":[]}', 1).anzahl).toBeUndefined();
+  });
+
+  it("Cloudflare-Bildmodelle: Antworttext in altem und neuem Format", () => {
+    expect(cloudflareAntwortText({ response: '{"punkte":[]}' })).toBe('{"punkte":[]}');
+    expect(cloudflareAntwortText({ response: { punkte: [] } })).toBe('{"punkte":[]}');
+    expect(cloudflareAntwortText({ choices: [{ message: { content: "abc" } }] })).toBe("abc");
+    expect(cloudflareAntwortText({ choices: [{ message: { content: [{ type: "text", text: "a" }, { type: "text", text: "b" }] } }] })).toBe("ab");
+    expect(cloudflareAntwortText({ result: { response: "x" } })).toBe("x");
+    expect(cloudflareAntwortText({})).toBe("");
+    expect(Object.keys(CLOUDFLARE_BILDMODELLE).every((k) => (ZAEHL_MODELLE as readonly string[]).includes(k))).toBe(true);
   });
 
   it("Gemini direkt bei Google: Modellname, Bildteile, Antworttext ohne Gedanken", () => {
@@ -84,119 +119,6 @@ describe("Zählhilfe: Antworten der Modelle", () => {
       }),
     ).toEqual({ text: '{"punkte":[]}', ende: "STOP" });
     expect(googleAntwortText({ promptFeedback: { blockReason: "SAFETY" } })).toEqual({ text: "", ende: "SAFETY" });
-  });
-
-  it("Cloudflare-Bildmodelle: Antworttext in altem und neuem Format", () => {
-    expect(cloudflareAntwortText({ response: '{"punkte":[]}' })).toBe('{"punkte":[]}');
-    expect(cloudflareAntwortText({ response: { punkte: [] } })).toBe('{"punkte":[]}');
-    expect(cloudflareAntwortText({ choices: [{ message: { content: "abc" } }] })).toBe("abc");
-    expect(cloudflareAntwortText({ choices: [{ message: { content: [{ type: "text", text: "a" }, { type: "text", text: "b" }] } }] })).toBe("ab");
-    expect(cloudflareAntwortText({ result: { response: "x" } })).toBe("x");
-    expect(cloudflareAntwortText({})).toBe("");
-    expect(Object.keys(CLOUDFLARE_BILDMODELLE).every((k) => (ZAEHL_MODELLE as readonly string[]).includes(k))).toBe(true);
-  });
-
-  it("liest Punkte auch mit Text um das JSON herum", () => {
-    expect(geminiPunkte('Ich sehe drei Gleiter:\n{"punkte":[{"ziel":0,"y":500,"x":300}]}\nFertig.', 1)).toEqual([{ x: 0.3, y: 0.5, ziel: 0 }]);
-  });
-
-  it("Gemini-Anweisung nummeriert die Arten", () => {
-    const a = geminiAnweisung(["Akkuschrauber", "Koffer"]);
-    expect(a).toContain("0: Akkuschrauber");
-    expect(a).toContain("1: Koffer");
-  });
-});
-
-describe("Zählhilfe: Moondream robust lesen", () => {
-  it("findet Punkte direkt, verschachtelt und als Paare", () => {
-    expect(moondreamRohpunkte({ points: [{ x: 0.1, y: 0.2 }] })).toEqual([{ x: 0.1, y: 0.2 }]);
-    expect(moondreamRohpunkte({ result: { points: [[0.3, 0.4]] } })).toEqual([{ x: 0.3, y: 0.4 }]);
-    expect(moondreamRohpunkte({ output: { points: [{ x: "0.5", y: 0.6 }] } })).toEqual([{ x: 0.5, y: 0.6 }]);
-    expect(moondreamRohpunkte({ points: null, finish_reason: "stop" })).toEqual([]);
-    expect(moondreamRohpunkte(null)).toEqual([]);
-  });
-
-  it("versucht erst den vollen Text, dann den Begriff vor dem Doppelpunkt, zuletzt das deutsche Wort", () => {
-    expect(moondreamKandidaten("Power tools: cordless drill, blue case", "Elektrowerkzeug: Akkuschrauber, blauer Koffer")).toEqual([
-      "Power tools: cordless drill, blue case",
-      "Power tools",
-      "Elektrowerkzeug",
-    ]);
-    expect(moondreamKandidaten("Shares", "Schere")).toEqual(["Shares", "Schere"]);
-    expect(moondreamKandidaten("  suitcase ")).toEqual(["suitcase"]);
-    // Übersetzung fehlgeschlagen = Original: kein doppelter Versuch
-    expect(moondreamKandidaten("Koffer", "Koffer")).toEqual(["Koffer"]);
-  });
-
-  it("liest das Ergebnis aus dem Datenstrom (echte Antwort von Cloudflare, gekürzt)", () => {
-    const strom = [
-      'data: {"id":"a","status":"processing","usage":{"neurons":0}}',
-      "",
-      'data: {"mode":"replace","name":"task","value":"query"}',
-      "",
-      'data: {"chunk":{"answer":"The","finish_reason":"","points":null},"index":0}',
-      "",
-      'data: {"chunk":{"answer":"The capital of France is Paris.","finish_reason":"stop","metrics":{"input_tokens":9},"points":null},"index":6}',
-      "",
-      'data: {"id":"a","output":[{"answer":"The","finish_reason":""},{"answer":"The capital of France is Paris.","finish_reason":"stop","metrics":{"input_tokens":9}}],"status":"succeeded"}',
-      "",
-      'data: {"response":"","usage":{"neurons":2.58}}',
-      "",
-      "data: [DONE]",
-    ].join("\n");
-    expect(moondreamStromLesen(strom)).toEqual({ answer: "The capital of France is Paris.", finish_reason: "stop", metrics: { input_tokens: 9 } });
-  });
-
-  it("holt Punkte aus dem Datenstrom und meldet Fehler im Strom", () => {
-    const strom = 'data: {"chunk":{"finish_reason":"stop","metrics":{},"points":[{"x":0.4,"y":0.6}]}}\n\ndata: [DONE]\n';
-    const r = moondreamStromLesen(strom);
-    expect(moondreamAntwortFehler(r)).toBeNull();
-    expect(moondreamRohpunkte(r)).toEqual([{ x: 0.4, y: 0.6 }]);
-    expect(() => moondreamStromLesen('data: {"errors":[{"message":"kaputt"}]}\n')).toThrow(/Fehler im Datenstrom/);
-    expect(() => moondreamStromLesen('data: {"status":"failed"}\n')).toThrow(/Fehler im Datenstrom/);
-    expect(() => moondreamStromLesen("data: [DONE]\n")).toThrow(/ohne Ergebnis/);
-  });
-
-  it("liest Punkte aus dem Antworttext der Frage, auch mit Code-Zaun oder Text drumherum", () => {
-    expect(textPunkte('{"points":[{"x":0.2,"y":0.3},{"x":0.7,"y":0.8}]}')).toEqual([
-      { x: 0.2, y: 0.3 },
-      { x: 0.7, y: 0.8 },
-    ]);
-    expect(textPunkte('Here you go:\n```json\n{"points":[{"x":0.5,"y":0.5}]}\n```')).toEqual([{ x: 0.5, y: 0.5 }]);
-    expect(textPunkte("[[0.1,0.9]]")).toEqual([{ x: 0.1, y: 0.9 }]);
-    expect(textPunkte('{"points":[]}')).toEqual([]);
-    expect(textPunkte("I cannot see any scissors.")).toEqual([]);
-    expect(moondreamFrage("scissors")).toContain("every single visible scissors");
-    // Keine Beispielzahlen in der Frage – Moondream hat sie übernommen und immer 2 gezählt
-    expect(moondreamFrage("scissors")).not.toMatch(/\d\.\d|"count":\s*\d/);
-  });
-
-  it("nimmt Punkte aus Antwort, sonst aus dem Nachdenken des Modells", () => {
-    expect(moondreamAntwortPunkte({ answer: '{"points":[{"x":0.4,"y":0.6}]}', finish_reason: "stop" })).toEqual([{ x: 0.4, y: 0.6 }]);
-    expect(
-      moondreamAntwortPunkte({
-        answer: "There are two.",
-        finish_reason: "stop",
-        reasoning: { text: "…", grounding: [{ start_idx: 0, end_idx: 5, points: [[0.1, 0.2], [0.3, 0.4]] }, { points: [{ x: 0.5, y: 0.6 }] }] },
-      }),
-    ).toEqual([
-      { x: 0.1, y: 0.2 },
-      { x: 0.3, y: 0.4 },
-      { x: 0.5, y: 0.6 },
-    ]);
-    expect(moondreamAntwortPunkte({ answer: "none", reasoning: { grounding: [] } })).toEqual([]);
-    expect(moondreamAntwortPunkte({ points: [{ x: 0.9, y: 0.1 }] })).toEqual([{ x: 0.9, y: 0.1 }]);
-  });
-
-  it("erkennt, ob das Modell überhaupt gerechnet hat", () => {
-    expect(moondreamAntwortFehler({ finish_reason: "stop", metrics: {}, points: [] })).toBeNull();
-    expect(moondreamAntwortFehler({ finish_reason: "stop", points: null })).toBeNull();
-    expect(moondreamAntwortFehler({ result: { finish_reason: "stop", points: [{ x: 0.1, y: 0.2 }] }, success: true })).toBeNull();
-    expect(moondreamAntwortFehler({})).toMatch(/^Antwort ohne Punkte \(Felder: keine\)/);
-    expect(moondreamAntwortFehler({ foo: 1 })).toMatch(/Felder: foo/);
-    expect(moondreamAntwortFehler({ errors: [{ message: "x" }] })).toMatch(/^Fehler vom Modell/);
-    expect(moondreamAntwortFehler(null)).toMatch(/kein Objekt/);
-    expect(moondreamAntwortFehler("text")).toMatch(/kein Objekt/);
   });
 
   it("kürzt Rohantworten und entfernt Bilddaten", () => {
@@ -260,33 +182,27 @@ describe("Zählhilfe: Schnittstelle", () => {
   const bild = "data:image/jpeg;base64,/9j/4AAQSkZJRg==";
 
   it("verlangt Anmeldung", async () => {
-    const r = await new Client().post("/zaehlen", { modell: "moondream", bild, breite: 640, hoehe: 480, ziele: ["Koffer"] });
+    const r = await new Client().post("/zaehlen", { modell: "qwen", bild, breite: 640, hoehe: 480, ziele: ["Koffer"] });
     expect(r.status).toBe(401);
   });
 
-  it("prüft Foto und Arten", async () => {
+  it("prüft Foto, Arten und Modell; Moondream gibt es nicht mehr", async () => {
     const admin = await adminEinrichten();
-    expect((await admin.post("/zaehlen", { modell: "moondream", bild: "http://x", breite: 640, hoehe: 480, ziele: ["Koffer"] })).status).toBe(400);
-    expect((await admin.post("/zaehlen", { modell: "moondream", bild, breite: 640, hoehe: 480, ziele: [] })).status).toBe(400);
+    expect((await admin.post("/zaehlen", { modell: "qwen", bild: "http://x", breite: 640, hoehe: 480, ziele: ["Koffer"] })).status).toBe(400);
+    expect((await admin.post("/zaehlen", { modell: "qwen", bild, breite: 640, hoehe: 480, ziele: [] })).status).toBe(400);
     expect((await admin.post("/zaehlen", { modell: "anders", bild, breite: 640, hoehe: 480, ziele: ["Koffer"] })).status).toBe(400);
+    expect((await admin.post("/zaehlen", { modell: "moondream", bild, breite: 640, hoehe: 480, ziele: ["Koffer"] })).status).toBe(400);
   });
 
-  it("Moondream ohne erreichbares Workers AI meldet den Fehler statt „nichts gefunden“", async () => {
-    const admin = await adminEinrichten();
-    const r = await admin.post("/zaehlen", { modell: "moondream", bild, breite: 640, hoehe: 480, ziele: ["Koffer"] });
-    expect(r.status).toBe(502);
-    expect(r.daten.fehler).toMatch(/^Moondream hat nicht geantwortet: ./);
-  });
-
-  it("Cloudflare-Bildmodelle sind über die Bindung verfügbar und werden angenommen", async () => {
+  it("Cloudflare-Bildmodelle sind über die Bindung verfügbar und melden Fehler statt „nichts gefunden“", async () => {
     const admin = await adminEinrichten();
     const da = (await admin.get("/zaehlen/modelle")).daten;
     expect(Object.keys(da).sort()).toEqual([...ZAEHL_MODELLE].sort());
-    expect(da.llama4).toBe(true);
-    // Ohne erreichbares Workers AI: Fehler vom Modell statt „nichts gefunden“, aber kein 400 (Modell gültig)
-    const r = await admin.post("/zaehlen", { modell: "llama4", bild, breite: 640, hoehe: 480, ziele: ["Koffer"] });
+    expect(da.qwen).toBe(true);
+    // In den Tests ist Workers AI nicht erreichbar: Fehler vom Modell, aber kein 400 (Modell gültig)
+    const r = await admin.post("/zaehlen", { modell: "qwen", bild, breite: 640, hoehe: 480, ziele: ["Koffer"] });
     expect(r.status).toBe(502);
-    expect(r.daten.fehler).toMatch(/^Llama 4 Scout \(Cloudflare\) hat nicht geantwortet/);
+    expect(r.daten.fehler).toMatch(/^Qwen 3\.8 \(Cloudflare\) hat nicht geantwortet: ./);
   });
 
   it("Gemini ohne Schlüssel ist nicht eingerichtet", async () => {

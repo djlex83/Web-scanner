@@ -15,7 +15,7 @@
       "database_name": "web-scanner"
     }
   ],
-  // Workers AI (Moondream) für die Zählhilfe; im kostenlosen Tarif mit Tageskontingent
+  // Workers AI (Bildmodelle wie Qwen, Llama 4) für die Zählhilfe; im kostenlosen Tarif mit Tageskontingent
   "ai": { "binding": "AI" },
   "vars": {
     // Passwort-Hashing-Runden; 20000 passt in den kostenlosen Tarif (10 ms CPU je Anfrage)
