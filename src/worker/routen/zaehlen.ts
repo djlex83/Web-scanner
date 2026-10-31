@@ -83,7 +83,9 @@ function bildEingabe(bild: Uint8Array, form: BildForm): unknown {
  * statt dass die Bindung Unerwartetes (Stream, leeres Objekt) stillschweigend durchreicht.
  */
 async function moondreamAufruf(ai: Ai, bild: Uint8Array, target: string, form: BildForm): Promise<unknown> {
-  const eingabe = { task: "point", image: bildEingabe(bild, form), target, max_objects: 300 };
+  // Binär geht als Formular: Zusatzfelder kommen dort als Text an, und das Modell lehnt "300" als Zahl ab
+  // („\"300\" is not of type \"integer\"“). Deshalb ohne max_objects; beim Array als Zahl.
+  const eingabe = form === "binär" ? { task: "point", image: bildEingabe(bild, form), target } : { task: "point", image: bildEingabe(bild, form), target, max_objects: 300 };
   const antwort = await ai.run(MOONDREAM as keyof AiModels, eingabe as never, { returnRawResponse: true });
   const text = await antwort.text();
   if (!antwort.ok) throw new Error(`HTTP ${antwort.status}: ${text.slice(0, 300)}`);

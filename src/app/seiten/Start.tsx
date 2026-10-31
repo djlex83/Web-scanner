@@ -8,6 +8,7 @@ import { useIch, useSitzung } from "../lib/sitzung";
 import { Hochzaehler } from "../ui/bewegung";
 import { Abschnitt, Kennzahl, Liste, Zeile } from "../ui/karte";
 import { kl } from "../ui/kl";
+import { Version } from "../ui/version";
 import { FehlerHinweis, Leer, Skelett } from "../ui/zustand";
 
 function gruss(): string {
@@ -23,11 +24,15 @@ export default function Start() {
 
   return (
     <div className="space-y-7">
-      <header className="pt-2">
-        <p className="text-[15px] font-medium capitalize text-gedaempft">{datum}</p>
-        <h1 className="mt-0.5 text-[28px] font-bold tracking-tight sm:text-3xl">
-          {gruss()}, {ich.name.split(" ")[0]}
-        </h1>
+      <header className="flex items-start justify-between gap-3 pt-2">
+        <div>
+          <p className="text-[15px] font-medium capitalize text-gedaempft">{datum}</p>
+          <h1 className="mt-0.5 text-[28px] font-bold tracking-tight sm:text-3xl">
+            {gruss()}, {ich.name.split(" ")[0]}
+          </h1>
+        </div>
+        {/* Welche Fassung läuft – so sieht man nach einer Bereitstellung, ob die App schon aktualisiert ist */}
+        <Version className="shrink-0" />
       </header>
 
       <div className={kl("grid gap-3", darf("buchen") && "sm:grid-cols-2")}>
