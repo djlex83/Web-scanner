@@ -64,29 +64,59 @@ async function insEnglische(ai: Ai, text: string): Promise<string> {
 }
 
 /**
+ * Wie das Bild an die Bindung geht. Das Modell meldet „'string' not in 'array','binary'“:
+ * - „binär“: Datenstrom + Inhaltstyp, wie Cloudflare es für Partnermodelle (z. B. Deepgram) vorsieht –
+ *   über die REST-API nicht möglich (verlangt JSON), über die Bindung vielleicht.
+ * - „array“: Byte-Array im JSON. Über die REST-API wandelt Cloudflare es wieder in Text um und lehnt es ab.
+ * Eine Zeichenkette (Adresse/Daten-URL) ergibt stillschweigend eine leere Antwort.
+ */
+type BildForm = "binär" | "array";
+const BILD_FORMEN: BildForm[] = ["binär", "array"];
+
+function bildEingabe(bild: Uint8Array, form: BildForm): unknown {
+  if (form === "array") return Array.from(bild);
+  return { body: new Blob([bild.buffer.slice(bild.byteOffset, bild.byteOffset + bild.byteLength) as ArrayBuffer], { type: "image/jpeg" }).stream(), contentType: "image/jpeg" };
+}
+
+/**
  * Rohe HTTP-Antwort holen und selbst lesen: So sehen wir Status, Inhaltstyp und Text,
  * statt dass die Bindung Unerwartetes (Stream, leeres Objekt) stillschweigend durchreicht.
- * `bild` sind die rohen Bytes des JPEGs – als Zeichenkette (Adresse/Daten-URL) antwortet das Modell leer.
  */
-async function moondreamAufruf(ai: Ai, bild: number[], target: string): Promise<unknown> {
-  const antwort = await ai.run(MOONDREAM as keyof AiModels, { task: "point", image: bild, target, max_objects: 300 } as never, { returnRawResponse: true });
+async function moondreamAufruf(ai: Ai, bild: Uint8Array, target: string, form: BildForm): Promise<unknown> {
+  const eingabe = { task: "point", image: bildEingabe(bild, form), target, max_objects: 300 };
+  const antwort = await ai.run(MOONDREAM as keyof AiModels, eingabe as never, { returnRawResponse: true });
   const text = await antwort.text();
   if (!antwort.ok) throw new Error(`HTTP ${antwort.status}: ${text.slice(0, 300)}`);
+  let r: unknown;
   try {
-    return JSON.parse(text);
+    r = JSON.parse(text);
   } catch {
     throw new Error(`Antwort kein JSON (${antwort.headers.get("content-type") ?? "ohne Inhaltstyp"}): ${text.slice(0, 200)}`);
   }
+  const problem = moondreamAntwortFehler(r);
+  if (problem) throw new Error(problem);
+  return r;
 }
 
-async function moondreamPunkt(ai: Ai, bild: number[], target: string, ziel: number | null, breite: number, hoehe: number) {
+async function moondreamPunkt(ai: Ai, bild: Uint8Array, target: string, ziel: number | null, breite: number, hoehe: number) {
   const start = Date.now();
+  const fehlerJeForm: string[] = [];
   try {
-    const r = await moondreamAufruf(ai, bild, target);
-    const problem = moondreamAntwortFehler(r);
-    if (problem) throw new Error(problem);
+    let r: unknown;
+    let genommen: BildForm = BILD_FORMEN[0]!;
+    // Erst binär, bei Ablehnung das Array – die Form, die durchkommt, steht in den Details
+    for (const form of BILD_FORMEN) {
+      try {
+        r = await moondreamAufruf(ai, bild, target, form);
+        genommen = form;
+        break;
+      } catch (err) {
+        fehlerJeForm.push(`${form}: ${fehlerText(err)}`);
+        if (form === BILD_FORMEN[BILD_FORMEN.length - 1]) throw new Error(fehlerJeForm.join(" | "));
+      }
+    }
     const punkte = moondreamPunkte(moondreamRohpunkte(r), ziel ?? 0, breite, hoehe).map((p) => ({ ...p, ziel }));
-    const versuch: ZaehlVersuch = { ziel, gesendet: target, punkte: punkte.length, dauerMs: Date.now() - start, antwort: antwortKurz(r) };
+    const versuch: ZaehlVersuch = { ziel, gesendet: `${target} (${genommen})`, punkte: punkte.length, dauerMs: Date.now() - start, antwort: antwortKurz(r) };
     return { punkte, versuch };
   } catch (err) {
     const versuch: ZaehlVersuch = { ziel, gesendet: target, punkte: 0, dauerMs: Date.now() - start, fehler: fehlerText(err) };
@@ -95,9 +125,9 @@ async function moondreamPunkt(ai: Ai, bild: number[], target: string, ziel: numb
 }
 
 async function mitMoondream(ai: Ai, datenUrl: string, ziele: string[], breite: number, hoehe: number): Promise<Ergebnis> {
-  let bild: number[];
+  let bild: Uint8Array;
   try {
-    bild = Array.from(datenUrlZuBytes(datenUrl));
+    bild = datenUrlZuBytes(datenUrl);
   } catch {
     fehler(400, "Das Foto ist nicht als gültige Base64-Daten-URL angekommen");
   }
