@@ -1,6 +1,14 @@
 import { env } from "cloudflare:workers";
-import { beforeEach } from "vitest";
+import { beforeAll, beforeEach } from "vitest";
 import { schemaSicherstellen, schemaVergessen } from "../src/worker/db/migrationen";
+
+// Jede Testdatei bekommt eine frische Workers-Laufzeit; das Worker-Modul (mit Hono und
+// Zod) wird dort erst bei der ersten Anfrage geladen. Das dauert ein bis drei Sekunden und
+// lief bisher in die 5-s-Grenze des jeweils ersten Tests. Hier einmal vorab laden – das
+// ist dieselbe Modulinstanz, die `exports.default.fetch` später benutzt.
+beforeAll(async () => {
+  await import("../src/worker/index");
+}, 30_000);
 
 // Jeder Test beginnt mit einer leeren Datenbank.
 beforeEach(async () => {
