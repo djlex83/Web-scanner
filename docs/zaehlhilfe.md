@@ -2,6 +2,8 @@
 
 In **Inventur → Regal → „Regal per Foto zählen“** nimmt man ein Foto vom Regal oder Fach auf. Ein Bildmodell setzt **auf jedes gefundene Teil einen Punkt**. Die Punkte sind nummeriert und haben die Farbe ihrer Art.
 
+**Foto aufnehmen oder Bild hochladen:** Am Handy öffnet „Foto aufnehmen“ direkt die Kamera, „Bild hochladen“ die Fotos. Am Rechner landen beide im Dateidialog; in Safari am Mac bietet der zusätzlich „Foto aufnehmen“ an und kann dafür ein iPhone in der Nähe als Kamera nehmen (Kamera-Übergabe von Apple). In anderen Browsern am Rechner lädt man ein Foto vom Rechner oder per AirDrop hoch.
+
 - **Korrigieren:** Tippen auf einen Punkt entfernt ihn. Art in der Liste antippen, dann ins Foto tippen, setzt einen fehlenden Punkt dieser Art. Die Zahlen laufen mit.
 - **Vergleich:** Je Art „gezählt / laut System“, grün bei Gleichstand.
 - **Strichcodes:** Die App liest die Codes auf dem Foto selbst (auf dem Gerät). Punkte mit Code bekommen einen grünen Ring, die Codes lassen sich mit einem Tipp in die Inventur übernehmen.

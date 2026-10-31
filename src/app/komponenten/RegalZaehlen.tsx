@@ -1,4 +1,4 @@
-import { Camera, Copy, Plus, RefreshCw, ScanLine, Sparkles, X } from "lucide-react";
+import { Camera, Copy, ImageUp, Plus, RefreshCw, ScanLine, Sparkles, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import type { Stueck } from "../../gemeinsam/typen";
 import {
@@ -31,6 +31,9 @@ const MAX_SEITE = 1280;
 /** Farbe je Art – kräftig genug für helle und dunkle Fotos, Punkte haben zusätzlich einen weißen Rand. */
 const FARBEN = ["#4f46e5", "#db2777", "#0891b2", "#ea580c", "#65a30d", "#9333ea"];
 const OHNE_ART = "#6b7280";
+
+/** Rechner mit Maus statt Handy: dort öffnet „aufnehmen“ keine Kamera, sondern den Dateidialog. */
+const amRechner = typeof window !== "undefined" && window.matchMedia("(hover: hover) and (pointer: fine)").matches;
 
 interface Foto {
   url: string;
@@ -176,20 +179,24 @@ export function RegalZaehlen({
     setErgebnis({ ...ergebnis, punkte: ergebnis.punkte.filter((_, j) => j !== i) });
   }
 
-  const fotoKnopf = (text: string, art: "primaer" | "zweit") => (
+  /**
+   * Zwei Wege zum Bild: „aufnehmen“ öffnet am Handy direkt die Kamera, „hochladen“ die Fotos bzw. den Dateidialog.
+   * Am Rechner landen beide im Dateidialog; in Safari am Mac bietet der auch „Foto aufnehmen“ mit dem iPhone als Kamera an.
+   */
+  const fotoKnopf = (text: string, quelle: "kamera" | "datei", art: "primaer" | "zweit") => (
     <label
       className={kl(
-        "flex h-14 w-full cursor-pointer items-center justify-center gap-2.5 rounded-2xl text-base font-semibold transition active:scale-[0.97]",
+        "flex h-14 min-w-0 flex-1 cursor-pointer items-center justify-center gap-2.5 rounded-2xl px-3 text-base font-semibold transition active:scale-[0.97]",
         art === "primaer" ? "bg-primaer text-auf-primaer hover:bg-primaer-hover" : "border border-rand bg-flaeche shadow-karte hover:bg-flaeche-2",
         laeuft && "pointer-events-none opacity-50",
       )}
     >
-      <Camera className="size-5" />
-      {text}
+      {quelle === "kamera" ? <Camera className="size-5 shrink-0" /> : <ImageUp className="size-5 shrink-0" />}
+      <span className="truncate">{text}</span>
       <input
         type="file"
         accept="image/*"
-        capture="environment"
+        capture={quelle === "kamera" ? "environment" : undefined}
         className="sr-only"
         disabled={!!laeuft}
         onChange={(ev) => {
@@ -198,6 +205,21 @@ export function RegalZaehlen({
         }}
       />
     </label>
+  );
+
+  const fotoKnoepfe = (neu: boolean) => (
+    <div className="space-y-2">
+      <div className="flex gap-2">
+        {fotoKnopf(neu ? "Neues Foto" : "Foto aufnehmen", "kamera", neu ? "zweit" : "primaer")}
+        {fotoKnopf("Bild hochladen", "datei", "zweit")}
+      </div>
+      {amRechner && (
+        <p className="text-[12px] text-gedaempft">
+          Am Rechner: „Foto aufnehmen“ nutzt in Safari am Mac auch das iPhone als Kamera. „Bild hochladen“ nimmt ein Foto vom Rechner oder per
+          AirDrop.
+        </p>
+      )}
+    </div>
   );
 
   const modellOptionen = (["moondream", "gemini"] as const)
@@ -266,7 +288,7 @@ export function RegalZaehlen({
                 Mit demselben Foto zählen
               </Knopf>
             )}
-            {fotoKnopf(foto ? "Neues Foto" : "Foto aufnehmen", foto ? "zweit" : "primaer")}
+            {fotoKnoepfe(!!foto)}
           </>
         )}
 
@@ -390,7 +412,7 @@ export function RegalZaehlen({
               <Knopf breit art="leise" onClick={() => setErgebnis(null)}>
                 Arten ändern
               </Knopf>
-              {fotoKnopf("Neues Foto", "zweit")}
+              {fotoKnoepfe(true)}
             </div>
           </>
         )}
