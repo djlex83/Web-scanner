@@ -11,6 +11,7 @@ import {
   moondreamKandidaten,
   moondreamPunkte,
   moondreamRohpunkte,
+  moondreamStromLesen,
   zieleVorschlagen,
 } from "../src/gemeinsam/zaehlen";
 import { adminEinrichten, Client } from "./hilfen";
@@ -90,6 +91,35 @@ describe("Zählhilfe: Moondream robust lesen", () => {
     expect(moondreamKandidaten("  suitcase ")).toEqual(["suitcase"]);
     // Übersetzung fehlgeschlagen = Original: kein doppelter Versuch
     expect(moondreamKandidaten("Koffer", "Koffer")).toEqual(["Koffer"]);
+  });
+
+  it("liest das Ergebnis aus dem Datenstrom (echte Antwort von Cloudflare, gekürzt)", () => {
+    const strom = [
+      'data: {"id":"a","status":"processing","usage":{"neurons":0}}',
+      "",
+      'data: {"mode":"replace","name":"task","value":"query"}',
+      "",
+      'data: {"chunk":{"answer":"The","finish_reason":"","points":null},"index":0}',
+      "",
+      'data: {"chunk":{"answer":"The capital of France is Paris.","finish_reason":"stop","metrics":{"input_tokens":9},"points":null},"index":6}',
+      "",
+      'data: {"id":"a","output":[{"answer":"The","finish_reason":""},{"answer":"The capital of France is Paris.","finish_reason":"stop","metrics":{"input_tokens":9}}],"status":"succeeded"}',
+      "",
+      'data: {"response":"","usage":{"neurons":2.58}}',
+      "",
+      "data: [DONE]",
+    ].join("\n");
+    expect(moondreamStromLesen(strom)).toEqual({ answer: "The capital of France is Paris.", finish_reason: "stop", metrics: { input_tokens: 9 } });
+  });
+
+  it("holt Punkte aus dem Datenstrom und meldet Fehler im Strom", () => {
+    const strom = 'data: {"chunk":{"finish_reason":"stop","metrics":{},"points":[{"x":0.4,"y":0.6}]}}\n\ndata: [DONE]\n';
+    const r = moondreamStromLesen(strom);
+    expect(moondreamAntwortFehler(r)).toBeNull();
+    expect(moondreamRohpunkte(r)).toEqual([{ x: 0.4, y: 0.6 }]);
+    expect(() => moondreamStromLesen('data: {"errors":[{"message":"kaputt"}]}\n')).toThrow(/Fehler im Datenstrom/);
+    expect(() => moondreamStromLesen('data: {"status":"failed"}\n')).toThrow(/Fehler im Datenstrom/);
+    expect(() => moondreamStromLesen("data: [DONE]\n")).toThrow(/ohne Ergebnis/);
   });
 
   it("wandelt die Daten-URL in rohe Bytes um", () => {

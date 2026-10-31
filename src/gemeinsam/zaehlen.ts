@@ -105,6 +105,33 @@ export function datenUrlZuBytes(datenUrl: string): Uint8Array {
 }
 
 /**
+ * Moondream-Antwort aus dem Datenstrom (Server-Sent Events, `data: {…}` je Zeile) holen.
+ * Cloudflare schickt Zwischenstände als `chunk`, am Ende ein Ereignis mit `output` (alle Zwischenstände)
+ * und `status`. Ergebnis ist der letzte Stand mit `finish_reason` „stop“, sonst der letzte überhaupt.
+ * Fehler im Strom (`errors`, `error`, `status: failed`) werden als Ausnahme gemeldet.
+ */
+export function moondreamStromLesen(text: string): unknown {
+  const staende: Record<string, unknown>[] = [];
+  for (const zeile of text.split(/\r?\n/)) {
+    const roh = zeile.startsWith("data:") ? zeile.slice(5).trim() : "";
+    if (!roh || roh === "[DONE]") continue;
+    let e: Record<string, unknown>;
+    try {
+      e = JSON.parse(roh) as Record<string, unknown>;
+    } catch {
+      continue;
+    }
+    if (e.error || (Array.isArray(e.errors) && e.errors.length) || e.status === "failed") {
+      throw new Error(`Fehler im Datenstrom: ${antwortKurz(e.error ?? e.errors ?? e, 300)}`);
+    }
+    if (e.chunk && typeof e.chunk === "object") staende.push(e.chunk as Record<string, unknown>);
+    if (Array.isArray(e.output)) for (const o of e.output) if (o && typeof o === "object") staende.push(o as Record<string, unknown>);
+  }
+  if (!staende.length) throw new Error(`Datenstrom ohne Ergebnis: ${antwortKurz(text, 300)}`);
+  return [...staende].reverse().find((s) => s.finish_reason === "stop") ?? staende[staende.length - 1];
+}
+
+/**
  * Eine echte Moondream-Antwort hat `finish_reason` und `metrics`, bei `point` dazu `points`
  * (leer, wenn nichts gefunden). Alles andere – etwa `{}` – heißt: das Modell hat nicht gerechnet.
  * Liefert die Beschreibung des Problems oder null, wenn die Antwort gültig ist.
