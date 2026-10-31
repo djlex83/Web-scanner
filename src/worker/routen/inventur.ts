@@ -48,6 +48,18 @@ inventurRouten.get("/", braucht("abfragen"), async (c) => {
   return c.json(await inventurenAbfragen(c.env.DB, karte, null, 50));
 });
 
+/** Jüngste Inventur je Platz – damit die Regal-Auswahl gezählte Regale farbig zeigen kann. */
+inventurRouten.get("/stand", braucht("abfragen"), async (c) => {
+  const karte = await plaetzeLaden(c.env.DB);
+  const { results } = await c.env.DB.prepare(
+    `SELECT i.id, i.platz_id, u.name AS benutzer, i.zeitpunkt, i.erwartet, i.gefunden, i.fehlend, i.zusaetzlich, i.verliehen
+     FROM inventuren i JOIN benutzer u ON u.id = i.benutzer_id
+     WHERE i.id IN (SELECT MAX(id) FROM inventuren GROUP BY platz_id)`,
+  ).all<InventurZeile>();
+  const eintraege: InventurEintrag[] = results.map(({ platz_id, ...r }) => ({ ...r, platz: platzKurz(karte, platz_id) }));
+  return c.json(eintraege.filter((e) => e.platz));
+});
+
 /** Alles, was laut System auf dem Platz (und den Plätzen darunter) liegt. */
 inventurRouten.get("/:id{[0-9]+}", braucht("buchen"), async (c) => {
   const id = Number(c.req.param("id"));

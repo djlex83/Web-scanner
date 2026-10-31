@@ -99,7 +99,13 @@ export default function Inventur() {
         )}
       </Abschnitt>
 
-      <PlatzWahl offen={wahl} schliessen={() => setWahl(false)} waehlen={(p: Platz) => navigate(`/inventur/${p.id}`)} titel="Welches Regal zählen?" />
+      <PlatzWahl
+        offen={wahl}
+        schliessen={() => setWahl(false)}
+        waehlen={(p: Platz) => navigate(`/inventur/${p.id}`)}
+        titel="Welches Regal zählen?"
+        inventurStand
+      />
     </div>
   );
 }

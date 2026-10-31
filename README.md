@@ -121,10 +121,12 @@ Admins legen unter **Benutzer** neue Konten an und vergeben die Rolle. Die App e
 
 Unter **Inventur** (oder auf der Seite eines Regals) das Regal wählen und alles scannen, was wirklich dort liegt. Die App vergleicht live mit dem Bestand:
 
-- ✅ **gefunden** – liegt da, wo es eingetragen ist
+- ✅ **gezählt** – liegt da, wo es eingetragen ist (grün hinterlegt mit Haken)
 - ❌ **fehlt noch** – laut System hier, aber nicht gescannt
 - ➕ **zusätzlich** – liegt hier, ist aber woanders eingetragen
 - 🤝 **verliehen** – fehlt, ist aber ausgeliehen (zählt nicht als fehlend)
+
+**Gezählte Regale sind farbig:** In der Regal-Auswahl der Inventur ist jedes Regal grün, das in den letzten 30 Tagen vollständig gezählt wurde, und orange, wenn dabei etwas fehlte oder zusätzlich da war. Fächer gelten über ihr Regal als gezählt. Oben steht, wie viele Regale schon erledigt sind.
 
 Ein gescannter **Behälter zählt mit seinem Inhalt**. Beim Abschließen entscheidest du, ob Zusätzliches hierher gebucht und Fehlendes als vermisst gemeldet wird. Das Ergebnis steht unveränderbar im Protokoll. Gescannte Codes bleiben gespeichert, auch wenn die Seite zwischendurch geschlossen wird.
 

@@ -102,12 +102,24 @@ export default function InventurPlatz() {
   const unbekannt = liste.eintraege.filter((e) => e.treffer?.art === "unbekannt" || (!e.treffer && e.fehler));
   const ohneInventur = daten.stuecke.length - erwartet.length;
   const anteil = erwartet.length ? Math.round((okListe.length / erwartet.length) * 100) : 100;
-  const zeile = (s: Stueck, unter: ReactNode, entfernen?: boolean) => (
-    <div key={s.id} className="flex items-center pr-2">
-      <Link to={`/stuecke/${s.id}`} className="flex min-h-16 min-w-0 flex-1 items-center gap-3 px-4 py-3 transition-colors hover:bg-flaeche-2">
-        <StueckBild stueck={s} className="size-11 rounded-xl" />
+  // Gezählte Stücke sind grün hinterlegt und haben einen Haken – so sieht man auf einen Blick, was erledigt ist
+  const zeile = (s: Stueck, unter: ReactNode, entfernen?: boolean, gezaehlt?: boolean) => (
+    <div key={s.id} className={kl("flex items-center pr-2", gezaehlt && "bg-erfolg-weich")}>
+      <Link
+        to={`/stuecke/${s.id}`}
+        className={kl("flex min-h-16 min-w-0 flex-1 items-center gap-3 px-4 py-3 transition-colors", gezaehlt ? "hover:brightness-95" : "hover:bg-flaeche-2")}
+      >
+        <span className="relative shrink-0">
+          <StueckBild stueck={s} className="size-11 rounded-xl" />
+          {gezaehlt && (
+            <CheckCircle2
+              aria-label="gezählt"
+              className="absolute -bottom-1 -right-1 size-5 rounded-full bg-flaeche text-erfolg-text"
+            />
+          )}
+        </span>
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-[15px] font-semibold">{s.name}</span>
+          <span className={kl("block truncate text-[15px] font-semibold", gezaehlt && "text-erfolg-text")}>{s.name}</span>
           <span className="mt-0.5 block truncate text-[13px] text-gedaempft">{unter}</span>
         </span>
       </Link>
@@ -208,10 +220,15 @@ export default function InventurPlatz() {
         </Bereich>
       )}
       {okListe.length > 0 && (
-        <Bereich titel="Gefunden" anzahl={okListe.length} ton="erfolg">
+        <Bereich titel="Gezählt" anzahl={okListe.length} ton="erfolg" offen={okListe.length <= 30}>
           <Liste>
             {okListe.map((s) =>
-              zeile(s, <>{s.in_behaelter && gescanntIds.has(s.in_behaelter.id) ? `im Behälter ${s.in_behaelter.name}` : <span className="font-mono">{s.code}</span>}</>, gescanntIds.has(s.id)),
+              zeile(
+                s,
+                <>{s.in_behaelter && gescanntIds.has(s.in_behaelter.id) ? `im Behälter ${s.in_behaelter.name}` : <span className="font-mono">{s.code}</span>}</>,
+                gescanntIds.has(s.id),
+                true,
+              ),
             )}
           </Liste>
         </Bereich>

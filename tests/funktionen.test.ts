@@ -226,6 +226,19 @@ describe("Inventur", () => {
     expect(r.daten).toMatchObject({ erwartet: 3, gefunden: 1, fehlend: 2, vorgang_id: null });
     expect((await admin.get("/uebersicht")).daten.vermisst).toBe(0);
   });
+
+  it("Stand: je Platz nur die jüngste Inventur", async () => {
+    const { admin, r1, r2, ids } = await aufbau();
+    expect((await admin.get("/inventur/stand")).daten).toEqual([]);
+    const basis = { zusaetzliche_buchen: false, fehlende_vermisst: false };
+    await admin.post("/inventur", { ...basis, platz_id: r1.id, gefunden_ids: [ids["A-1"]] });
+    await admin.post("/inventur", { ...basis, platz_id: r1.id, gefunden_ids: [ids["A-1"], ids["A-2"], ids["A-3"]] });
+    await admin.post("/inventur", { ...basis, platz_id: r2.id, gefunden_ids: [] });
+    const stand = (await admin.get("/inventur/stand")).daten as any[];
+    expect(stand).toHaveLength(2);
+    expect(stand.find((e) => e.platz.id === r1.id)).toMatchObject({ gefunden: 3, fehlend: 0 });
+    expect(stand.find((e) => e.platz.id === r2.id)).toMatchObject({ erwartet: 0 });
+  });
 });
 
 describe("Bestand exportieren", () => {
