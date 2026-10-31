@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   antwortKurz,
   codesZuPunkten,
+  datenUrlZuBytes,
   doppeltePunkteEntfernen,
   geminiAnweisung,
   geminiPunkte,
@@ -89,6 +90,13 @@ describe("Zählhilfe: Moondream robust lesen", () => {
     expect(moondreamKandidaten("  suitcase ")).toEqual(["suitcase"]);
     // Übersetzung fehlgeschlagen = Original: kein doppelter Versuch
     expect(moondreamKandidaten("Koffer", "Koffer")).toEqual(["Koffer"]);
+  });
+
+  it("wandelt die Daten-URL in rohe Bytes um", () => {
+    // "/9j/4AAQ" ist der Anfang jedes JPEGs: FF D8 FF E0 00 10
+    expect([...datenUrlZuBytes("data:image/jpeg;base64,/9j/4AAQ")]).toEqual([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]);
+    expect([...datenUrlZuBytes("SGFsbG8=")]).toEqual([72, 97, 108, 108, 111]);
+    expect(() => datenUrlZuBytes("data:image/jpeg;base64,%%%")).toThrow();
   });
 
   it("erkennt, ob das Modell überhaupt gerechnet hat", () => {

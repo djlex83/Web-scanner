@@ -91,6 +91,20 @@ export function moondreamKandidaten(englisch: string, original = ""): string[] {
 }
 
 /**
+ * Base64-Daten-URL in rohe Bytes. Moondream bei Cloudflare nimmt das Bild nur als Byte-Array an –
+ * eine Adresse oder Daten-URL als Zeichenkette ergibt stillschweigend eine leere Antwort `{}`
+ * (Chat-Pfad sagt es offen: „Type mismatch of '/image', 'string' not in 'array','binary'“).
+ */
+export function datenUrlZuBytes(datenUrl: string): Uint8Array {
+  const komma = datenUrl.indexOf(",");
+  const b64 = komma >= 0 ? datenUrl.slice(komma + 1) : datenUrl;
+  const bin = atob(b64.replace(/\s+/g, ""));
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes;
+}
+
+/**
  * Eine echte Moondream-Antwort hat `finish_reason` und `metrics`, bei `point` dazu `points`
  * (leer, wenn nichts gefunden). Alles andere – etwa `{}` – heißt: das Modell hat nicht gerechnet.
  * Liefert die Beschreibung des Problems oder null, wenn die Antwort gültig ist.

@@ -3,6 +3,7 @@ import { HTTPException } from "hono/http-exception";
 import { zaehlenSchema } from "../../gemeinsam/schemas";
 import {
   antwortKurz,
+  datenUrlZuBytes,
   doppeltePunkteEntfernen,
   geminiAnweisung,
   geminiPunkte,
@@ -65,8 +66,9 @@ async function insEnglische(ai: Ai, text: string): Promise<string> {
 /**
  * Rohe HTTP-Antwort holen und selbst lesen: So sehen wir Status, Inhaltstyp und Text,
  * statt dass die Bindung Unerwartetes (Stream, leeres Objekt) stillschweigend durchreicht.
+ * `bild` sind die rohen Bytes des JPEGs – als Zeichenkette (Adresse/Daten-URL) antwortet das Modell leer.
  */
-async function moondreamAufruf(ai: Ai, bild: string, target: string): Promise<unknown> {
+async function moondreamAufruf(ai: Ai, bild: number[], target: string): Promise<unknown> {
   const antwort = await ai.run(MOONDREAM as keyof AiModels, { task: "point", image: bild, target, max_objects: 300 } as never, { returnRawResponse: true });
   const text = await antwort.text();
   if (!antwort.ok) throw new Error(`HTTP ${antwort.status}: ${text.slice(0, 300)}`);
@@ -77,7 +79,7 @@ async function moondreamAufruf(ai: Ai, bild: string, target: string): Promise<un
   }
 }
 
-async function moondreamPunkt(ai: Ai, bild: string, target: string, ziel: number | null, breite: number, hoehe: number) {
+async function moondreamPunkt(ai: Ai, bild: number[], target: string, ziel: number | null, breite: number, hoehe: number) {
   const start = Date.now();
   try {
     const r = await moondreamAufruf(ai, bild, target);
@@ -92,7 +94,13 @@ async function moondreamPunkt(ai: Ai, bild: string, target: string, ziel: number
   }
 }
 
-async function mitMoondream(ai: Ai, bild: string, ziele: string[], breite: number, hoehe: number): Promise<Ergebnis> {
+async function mitMoondream(ai: Ai, datenUrl: string, ziele: string[], breite: number, hoehe: number): Promise<Ergebnis> {
+  let bild: number[];
+  try {
+    bild = Array.from(datenUrlZuBytes(datenUrl));
+  } catch {
+    fehler(400, "Das Foto ist nicht als gültige Base64-Daten-URL angekommen");
+  }
   const englisch = await Promise.all(ziele.map((t) => insEnglische(ai, t)));
   const je = await Promise.all(
     englisch.map(async (text, i) => {
