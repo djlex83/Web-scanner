@@ -134,6 +134,8 @@ describe("Zählhilfe: Moondream robust lesen", () => {
     expect(textPunkte('{"points":[]}')).toEqual([]);
     expect(textPunkte("I cannot see any scissors.")).toEqual([]);
     expect(moondreamFrage("scissors")).toContain("every single visible scissors");
+    // Keine Beispielzahlen in der Frage – Moondream hat sie übernommen und immer 2 gezählt
+    expect(moondreamFrage("scissors")).not.toMatch(/\d\.\d|"count":\s*\d/);
   });
 
   it("nimmt Punkte aus Antwort, sonst aus dem Nachdenken des Modells", () => {

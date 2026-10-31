@@ -95,8 +95,10 @@ export function moondreamFrage(target: string): string {
   return [
     `Find every single visible ${target} in this image. Count each physical item exactly once, also if partly hidden.`,
     "Items of the same kind often lie next to each other, on top of each other or overlap: count each of them separately.",
-    'First count them, then give one point per item. Answer ONLY with JSON in this form: {"count":2,"points":[{"x":0.3,"y":0.5},{"x":0.6,"y":0.5}]}',
-    "x and y are the center of each item, normalized from 0 to 1 (0,0 = top left). There must be exactly as many points as count. If there is none, answer {\"count\":0,\"points\":[]}.",
+    // Kein Beispiel mit konkreten Zahlen: Moondream hat ein Beispiel mit zwei Punkten wörtlich übernommen und immer 2 gezählt
+    "First count them carefully, then give one point per item.",
+    'Answer ONLY with JSON: an object with "count" (the number of items you counted) and "points" (a list with one {"x": …, "y": …} per item).',
+    "x and y are the center of each item, normalized from 0 to 1 (0,0 = top left). There must be exactly as many points as count.",
   ].join("\n");
 }
 
