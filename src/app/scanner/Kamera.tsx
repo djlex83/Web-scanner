@@ -37,20 +37,24 @@ export function Kamera({ beiCodes, hinweis }: { beiCodes: (codes: string[]) => v
       return;
     }
     try {
+      // Dauer-Autofokus gleich mitbestellen (advanced = Wunsch, wird sonst ignoriert). Ein nachträgliches
+      // applyConstraints startet die Kamera auf manchen Handys neu – das sah aus wie Hin- und Herzoomen.
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: false,
-        video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } },
+        video: {
+          facingMode: { ideal: "environment" },
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
+          advanced: [{ focusMode: "continuous" } as MediaTrackConstraintSet],
+        },
       });
       streamRef.current = stream;
       const video = videoRef.current!;
       video.srcObject = stream;
       await video.play().catch(() => {});
       const spur = stream.getVideoTracks()[0];
-      const faehig = (spur?.getCapabilities?.() ?? {}) as { torch?: boolean; focusMode?: string[] };
+      const faehig = (spur?.getCapabilities?.() ?? {}) as { torch?: boolean };
       setLicht(faehig.torch ? false : null);
-      if (faehig.focusMode?.includes("continuous")) {
-        await spur?.applyConstraints({ advanced: [{ focusMode: "continuous" } as MediaTrackConstraintSet] }).catch(() => {});
-      }
       setZustand("laeuft");
     } catch (e) {
       const name = (e as DOMException).name;
@@ -174,8 +178,9 @@ export function Kamera({ beiCodes, hinweis }: { beiCodes: (codes: string[]) => v
     }
   }
 
+  // svh statt dvh: Die Höhe darf sich nicht ändern, wenn die Browserleiste ein- und ausklappt – sonst „zoomt“ das Bild
   return (
-    <div className="relative h-[min(40dvh,420px)] min-h-[240px] overflow-hidden rounded-[28px] bg-[#0b0c10] text-white shadow-hoch">
+    <div className="relative h-[min(40svh,420px)] min-h-[240px] overflow-hidden rounded-[28px] bg-[#0b0c10] text-white shadow-hoch">
       <video
         ref={videoRef}
         muted

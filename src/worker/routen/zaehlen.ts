@@ -6,6 +6,7 @@ import {
   doppeltePunkteEntfernen,
   geminiAnweisung,
   geminiPunkte,
+  moondreamAntwortFehler,
   moondreamKandidaten,
   moondreamPunkte,
   moondreamRohpunkte,
@@ -53,10 +54,27 @@ async function insEnglische(ai: Ai, text: string): Promise<string> {
   }
 }
 
+/**
+ * Rohe HTTP-Antwort holen und selbst lesen: So sehen wir Status, Inhaltstyp und Text,
+ * statt dass die Bindung Unerwartetes (Stream, leeres Objekt) stillschweigend durchreicht.
+ */
+async function moondreamAufruf(ai: Ai, bild: string, target: string): Promise<unknown> {
+  const antwort = await ai.run(MOONDREAM as keyof AiModels, { task: "point", image: bild, target, max_objects: 300 } as never, { returnRawResponse: true });
+  const text = await antwort.text();
+  if (!antwort.ok) throw new Error(`HTTP ${antwort.status}: ${text.slice(0, 300)}`);
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new Error(`Antwort kein JSON (${antwort.headers.get("content-type") ?? "ohne Inhaltstyp"}): ${text.slice(0, 200)}`);
+  }
+}
+
 async function moondreamPunkt(ai: Ai, bild: string, target: string, ziel: number | null, breite: number, hoehe: number) {
   const start = Date.now();
   try {
-    const r = await ai.run(MOONDREAM as keyof AiModels, { task: "point", image: bild, target, max_objects: 300 } as never);
+    const r = await moondreamAufruf(ai, bild, target);
+    const problem = moondreamAntwortFehler(r);
+    if (problem) throw new Error(problem);
     const punkte = moondreamPunkte(moondreamRohpunkte(r), ziel ?? 0, breite, hoehe).map((p) => ({ ...p, ziel }));
     const versuch: ZaehlVersuch = { ziel, gesendet: target, punkte: punkte.length, dauerMs: Date.now() - start, antwort: antwortKurz(r) };
     return { punkte, versuch };
@@ -71,8 +89,8 @@ async function mitMoondream(ai: Ai, bild: string, ziele: string[], breite: numbe
   const je = await Promise.all(
     englisch.map(async (text, i) => {
       const versuche: ZaehlVersuch[] = [];
-      // Voller Text zuerst, bei 0 Treffern der kurze Begriff vor dem Doppelpunkt
-      for (const target of moondreamKandidaten(text)) {
+      // Voller Text zuerst, bei 0 Treffern der kurze Begriff vor dem Doppelpunkt, zuletzt das deutsche Wort
+      for (const target of moondreamKandidaten(text, ziele[i]!)) {
         const r = await moondreamPunkt(ai, bild, target, i, breite, hoehe);
         versuche.push(r.versuch);
         if (r.punkte.length || r.versuch.fehler) return { punkte: r.punkte, versuche };

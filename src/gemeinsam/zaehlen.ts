@@ -79,13 +79,29 @@ export function moondreamRohpunkte(r: unknown): { x: number; y: number }[] {
 }
 
 /**
- * Was Moondream nacheinander versucht, bis es Punkte findet: der volle Text,
- * dann nur der Teil vor dem Doppelpunkt (Kategorie bzw. Name). Kurze Begriffe findet es oft besser.
+ * Was Moondream nacheinander versucht, bis es Punkte findet: der volle übersetzte Text,
+ * dann nur der Teil vor dem Doppelpunkt (Kategorie bzw. Name), zuletzt der deutsche Begriff –
+ * die Übersetzung kann bei einzelnen Wörtern danebenliegen („Schere“ → „Shares“).
  */
-export function moondreamKandidaten(englisch: string): string[] {
+export function moondreamKandidaten(englisch: string, original = ""): string[] {
   const voll = englisch.replace(/\s+/g, " ").trim();
   const kurz = voll.split(":")[0]!.trim();
-  return [...new Set([voll, kurz].filter(Boolean))];
+  const deutsch = original.replace(/\s+/g, " ").trim().split(":")[0]!.trim();
+  return [...new Set([voll, kurz, deutsch].filter(Boolean))];
+}
+
+/**
+ * Eine echte Moondream-Antwort hat `finish_reason` und `metrics`, bei `point` dazu `points`
+ * (leer, wenn nichts gefunden). Alles andere – etwa `{}` – heißt: das Modell hat nicht gerechnet.
+ * Liefert die Beschreibung des Problems oder null, wenn die Antwort gültig ist.
+ */
+export function moondreamAntwortFehler(r: unknown): string | null {
+  const o = r as Record<string, unknown> | null;
+  const kern = (o?.result && typeof o.result === "object" && !("points" in o) ? o.result : o) as Record<string, unknown> | null;
+  if (!kern || typeof kern !== "object") return `Antwort ist kein Objekt: ${antwortKurz(r, 200)}`;
+  if (Array.isArray(kern.points) || typeof kern.finish_reason === "string") return null;
+  if (typeof kern.error === "string" || Array.isArray(kern.errors)) return `Fehler vom Modell: ${antwortKurz(kern.error ?? kern.errors, 200)}`;
+  return `Antwort ohne Punkte (Felder: ${Object.keys(kern).join(", ") || "keine"}): ${antwortKurz(r, 200)}`;
 }
 
 export interface ZielQuelle {

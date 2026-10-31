@@ -6,6 +6,7 @@ import {
   geminiAnweisung,
   geminiPunkte,
   MAX_ZIELE,
+  moondreamAntwortFehler,
   moondreamKandidaten,
   moondreamPunkte,
   moondreamRohpunkte,
@@ -78,9 +79,27 @@ describe("Zählhilfe: Moondream robust lesen", () => {
     expect(moondreamRohpunkte(null)).toEqual([]);
   });
 
-  it("versucht erst den vollen Text, dann den Begriff vor dem Doppelpunkt", () => {
-    expect(moondreamKandidaten("Power tools: cordless drill, blue case")).toEqual(["Power tools: cordless drill, blue case", "Power tools"]);
+  it("versucht erst den vollen Text, dann den Begriff vor dem Doppelpunkt, zuletzt das deutsche Wort", () => {
+    expect(moondreamKandidaten("Power tools: cordless drill, blue case", "Elektrowerkzeug: Akkuschrauber, blauer Koffer")).toEqual([
+      "Power tools: cordless drill, blue case",
+      "Power tools",
+      "Elektrowerkzeug",
+    ]);
+    expect(moondreamKandidaten("Shares", "Schere")).toEqual(["Shares", "Schere"]);
     expect(moondreamKandidaten("  suitcase ")).toEqual(["suitcase"]);
+    // Übersetzung fehlgeschlagen = Original: kein doppelter Versuch
+    expect(moondreamKandidaten("Koffer", "Koffer")).toEqual(["Koffer"]);
+  });
+
+  it("erkennt, ob das Modell überhaupt gerechnet hat", () => {
+    expect(moondreamAntwortFehler({ finish_reason: "stop", metrics: {}, points: [] })).toBeNull();
+    expect(moondreamAntwortFehler({ finish_reason: "stop", points: null })).toBeNull();
+    expect(moondreamAntwortFehler({ result: { finish_reason: "stop", points: [{ x: 0.1, y: 0.2 }] }, success: true })).toBeNull();
+    expect(moondreamAntwortFehler({})).toMatch(/^Antwort ohne Punkte \(Felder: keine\)/);
+    expect(moondreamAntwortFehler({ foo: 1 })).toMatch(/Felder: foo/);
+    expect(moondreamAntwortFehler({ errors: [{ message: "x" }] })).toMatch(/^Fehler vom Modell/);
+    expect(moondreamAntwortFehler(null)).toMatch(/kein Objekt/);
+    expect(moondreamAntwortFehler("text")).toMatch(/kein Objekt/);
   });
 
   it("kürzt Rohantworten und entfernt Bilddaten", () => {
