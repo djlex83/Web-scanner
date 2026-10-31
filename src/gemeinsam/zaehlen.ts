@@ -261,15 +261,15 @@ export function geminiPunkte(text: string, anzahlZiele: number): ZaehlPunkt[] {
 /**
  * Doppelte zusammenführen: Liegen zwei Punkte verschiedener Arten näher als `abstand` (Anteil der
  * Bilddiagonale), ist es dasselbe Teil, das unter zwei Arten gefunden wurde. Der erste gewinnt.
- * Punkte derselben Art bleiben immer stehen – das Modell zählt jedes Teil ohnehin einzeln, und
- * gestapelte oder übereinanderliegende Teile (drei Scheren in einem Fach) liegen nun mal dicht beieinander.
+ * Punkte derselben Art bleiben stehen – gestapelte oder übereinanderliegende Teile (drei Scheren in
+ * einem Fach) liegen nun mal dicht beieinander. Nur praktisch deckungsgleiche Punkte derselben Art
+ * (unter `gleich`, Moondream liefert manchmal denselben Punkt zweimal) werden zu einem.
  */
-export function doppeltePunkteEntfernen(punkte: ZaehlPunkt[], breite: number, hoehe: number, abstand = 0.025): ZaehlPunkt[] {
+export function doppeltePunkteEntfernen(punkte: ZaehlPunkt[], breite: number, hoehe: number, abstand = 0.025, gleich = 0.003): ZaehlPunkt[] {
   const diag = Math.hypot(breite, hoehe);
-  const grenze = abstand * diag;
   const behalten: ZaehlPunkt[] = [];
   for (const p of punkte) {
-    const doppelt = behalten.some((b) => b.ziel !== p.ziel && Math.hypot((b.x - p.x) * breite, (b.y - p.y) * hoehe) < grenze);
+    const doppelt = behalten.some((b) => Math.hypot((b.x - p.x) * breite, (b.y - p.y) * hoehe) < (b.ziel === p.ziel ? gleich : abstand) * diag);
     if (!doppelt) behalten.push(p);
   }
   return behalten;
@@ -304,6 +304,33 @@ export function codesZuPunkten(punkte: ZaehlPunkt[], codes: CodeOrt[], breite: n
     vergeben.add(p.code);
   }
   return zuordnung;
+}
+
+/** Modellname für Googles eigene Schnittstelle: ohne den OpenRouter-Vorsatz „google/“. */
+export const googleModell = (modell: string) => modell.trim().replace(/^google\//, "");
+
+/** Daten-URL in Inhaltstyp und Base64-Teil zerlegen (Google will beides getrennt). */
+export function datenUrlTeile(datenUrl: string): { typ: string; daten: string } {
+  const m = /^data:([^;,]+);base64,(.*)$/s.exec(datenUrl);
+  if (!m) throw new Error("Foto ist keine Base64-Daten-URL");
+  return { typ: m[1]!, daten: m[2]! };
+}
+
+/**
+ * Text aus einer Antwort von Googles generateContent: alle Textteile außer den Gedanken.
+ * Dazu der Grund fürs Ende (STOP, MAX_TOKENS, SAFETY …) für die Diagnose.
+ */
+export function googleAntwortText(d: unknown): { text: string; ende: string } {
+  const o = d as {
+    candidates?: { content?: { parts?: { text?: string; thought?: boolean }[] }; finishReason?: string }[];
+    promptFeedback?: { blockReason?: string };
+  };
+  const k = o?.candidates?.[0];
+  const text = (k?.content?.parts ?? [])
+    .filter((p) => !p.thought && typeof p.text === "string")
+    .map((p) => p.text)
+    .join("");
+  return { text, ende: k?.finishReason ?? o?.promptFeedback?.blockReason ?? "?" };
 }
 
 /** Anweisung für Gemini. Die Ziele sind nummeriert, damit jeder Punkt einer Art zugeordnet werden kann. */

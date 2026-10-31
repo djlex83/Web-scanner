@@ -1,2 +1,4 @@
 # Lokale Geheimnisse für "npm run dev" – als .dev.vars kopieren (wird nicht eingecheckt)
 NOTFALL_CODE="hier-einen-langen-zufallscode-eintragen"
+# Zählhilfe mit Gemini: kostenloser Schlüssel von aistudio.google.com (oder OPENROUTER_API_KEY)
+# GEMINI_API_KEY="hier-den-schluessel-eintragen"

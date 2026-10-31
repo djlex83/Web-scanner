@@ -18,19 +18,28 @@ Die Arten kommen aus den Stücken, die laut System in diesem Regal liegen: grupp
 
 ## Zwei Modelle, umschaltbar
 
-| | Moondream 3.1 (Standard) | Gemini (zweite Meinung) |
+| | Moondream 3.1 | Gemini (empfohlen) |
 |---|---|---|
-| Wo | Cloudflare Workers AI (`@cf/moondream/moondream3.1-9B-A2B`, Aufgabe `point`) | Google, über OpenRouter |
-| Foto geht an | Cloudflare | Google (über OpenRouter) |
-| Einrichtung | nichts – Bindung `AI` in `wrangler.jsonc` | Secret `OPENROUTER_API_KEY` am Worker |
-| Kosten (Schätzung) | ca. 0,05 Cent pro Art und Foto; das Gratis-Kontingent (10 000 Neurons/Tag) reicht grob für 50–100 Fotos am Tag, danach bricht es ab statt Geld zu kosten | ca. 1–2 Cent pro Foto |
-| Ablauf | deutsche Texte werden mit `@cf/meta/m2m100-1.2b` ins Englische übersetzt, dann je Art eine `point`-Anfrage | eine Anfrage mit allen Arten, Antwort als JSON |
+| Wo | Cloudflare Workers AI (`@cf/moondream/moondream3.1-9B-A2B`, Aufgabe `query` mit Datenstrom) | Google direkt (`GEMINI_API_KEY`) oder über OpenRouter (`OPENROUTER_API_KEY`) |
+| Foto geht an | Cloudflare | Google (ggf. über OpenRouter) |
+| Einrichtung | nichts – Bindung `AI` in `wrangler.jsonc` | Secret `GEMINI_API_KEY` **oder** `OPENROUTER_API_KEY` am Worker |
+| Kosten (Schätzung) | Gratis-Kontingent 10 000 Neurons/Tag | Google: kostenloses Kontingent in AI Studio, für eine Inventur reichlich · OpenRouter: ca. 1–2 Cent pro Foto |
+| Ablauf | deutsche Texte werden ins Englische übersetzt, dann je Art eine Frage nach den Punkten als JSON | eine Anfrage mit allen Arten, Antwort als JSON |
+| Zählqualität (Oktober 2026) | schwach: findet überlappende Teile oft nicht, setzt Punkte teils geraten | deutlich besser |
 
-Die Kostenzahlen sind geschätzt, nicht gemessen. Nach den ersten Tagen im Cloudflare-Dashboard unter *AI → Workers AI* bzw. bei OpenRouter nachsehen.
+Moondream ist bei Cloudflare nur über eine Frage nutzbar (siehe Fehlersuche), nicht über seine eigentliche Punkte-Aufgabe. Deshalb ist Gemini für das Zählen die bessere Wahl. Die Kostenzahlen sind geschätzt, nicht gemessen.
 
-Ist kein `OPENROUTER_API_KEY` gesetzt, zeigt die App nur Moondream an. Optional wählt `GEMINI_MODELL` ein anderes Modell bei OpenRouter (Standard `google/gemini-3.6-flash`).
+Ohne einen der beiden Schlüssel zeigt die App nur Moondream an. Ist `GEMINI_API_KEY` gesetzt, geht Gemini direkt an Google, sonst über OpenRouter. Optional wählt `GEMINI_MODELL` ein anderes Modell (Standard `google/gemini-3.6-flash`; bei Google wird der Vorsatz `google/` weggelassen).
 
-**Gemini einrichten:** Cloudflare → *Workers & Pages → web-scanner → Einstellungen → Variablen und Geheimnisse → Hinzufügen* → Typ **Geheimnis**, Name `OPENROUTER_API_KEY`, Wert = Schlüssel von openrouter.ai. Speichern und neu bereitstellen.
+**Gemini kostenlos einrichten (Google):**
+
+1. Auf [aistudio.google.com](https://aistudio.google.com) mit einem Google-Konto anmelden → *Get API key* → *Create API key*. Schlüssel kopieren.
+2. Cloudflare → *Workers & Pages → web-scanner → Einstellungen → Variablen und Geheimnisse → Hinzufügen* → Typ **Geheimnis**, Name `GEMINI_API_KEY`, Wert = der Schlüssel. Speichern.
+3. Neu bereitstellen (oder auf den nächsten Push warten). In der Zählhilfe erscheint dann die Auswahl Moondream / Gemini.
+
+Im kostenlosen Kontingent darf Google Eingaben zur Verbesserung seiner Modelle nutzen. Für Regalfotos meist unkritisch – wer das nicht will, schaltet in AI Studio die Abrechnung ein (bezahltes Kontingent, ohne diese Nutzung).
+
+**Über OpenRouter:** wie oben, aber Name `OPENROUTER_API_KEY`, Wert = Schlüssel von openrouter.ai (mit Guthaben).
 
 ## Fehlersuche
 

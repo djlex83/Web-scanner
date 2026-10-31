@@ -2,9 +2,12 @@ import { describe, expect, it } from "vitest";
 import {
   antwortKurz,
   codesZuPunkten,
+  datenUrlTeile,
   doppeltePunkteEntfernen,
   geminiAnweisung,
   geminiPunkte,
+  googleAntwortText,
+  googleModell,
   MAX_ZIELE,
   moondreamAntwortFehler,
   moondreamAntwortPunkte,
@@ -65,6 +68,19 @@ describe("Zählhilfe: Antworten der Modelle", () => {
     expect(geminiPunkte('[{"ziel":0,"y":0,"x":0}]', 1)).toEqual([{ x: 0, y: 0, ziel: 0 }]);
     expect(() => geminiPunkte("kein json", 1)).toThrow();
     expect(() => geminiPunkte('{"anders":1}', 1)).toThrow();
+  });
+
+  it("Gemini direkt bei Google: Modellname, Bildteile, Antworttext ohne Gedanken", () => {
+    expect(googleModell("google/gemini-3.6-flash")).toBe("gemini-3.6-flash");
+    expect(googleModell(" gemini-x ")).toBe("gemini-x");
+    expect(datenUrlTeile("data:image/jpeg;base64,/9j/4AAQ")).toEqual({ typ: "image/jpeg", daten: "/9j/4AAQ" });
+    expect(() => datenUrlTeile("http://x/bild.jpg")).toThrow();
+    expect(
+      googleAntwortText({
+        candidates: [{ content: { parts: [{ text: "überlege …", thought: true }, { text: '{"punkte":' }, { text: "[]}" }] }, finishReason: "STOP" }],
+      }),
+    ).toEqual({ text: '{"punkte":[]}', ende: "STOP" });
+    expect(googleAntwortText({ promptFeedback: { blockReason: "SAFETY" } })).toEqual({ text: "", ende: "SAFETY" });
   });
 
   it("Gemini-Anweisung nummeriert die Arten", () => {
@@ -189,6 +205,15 @@ describe("Zählhilfe: Punkte und Codes", () => {
       { x: 0.51, y: 0.505, ziel: 0 },
     ];
     expect(doppeltePunkteEntfernen(punkte, 1000, 1000)).toEqual(punkte);
+  });
+
+  it("fasst deckungsgleiche Punkte derselben Art zusammen", () => {
+    const punkte = [
+      { x: 0.45, y: 0.4, ziel: null },
+      { x: 0.45, y: 0.4, ziel: null },
+      { x: 0.451, y: 0.4, ziel: null },
+    ];
+    expect(doppeltePunkteEntfernen(punkte, 960, 1280)).toEqual([punkte[0]]);
   });
 
   it("ordnet jeden Code dem nächsten Punkt zu, jeden höchstens einmal", () => {

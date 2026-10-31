@@ -3,9 +3,12 @@ import { HTTPException } from "hono/http-exception";
 import { zaehlenSchema } from "../../gemeinsam/schemas";
 import {
   antwortKurz,
+  datenUrlTeile,
   doppeltePunkteEntfernen,
   geminiAnweisung,
   geminiPunkte,
+  googleAntwortText,
+  googleModell,
   moondreamAntwortFehler,
   moondreamAntwortPunkte,
   moondreamFrage,
@@ -121,60 +124,92 @@ async function mitMoondream(ai: Ai, bild: string, ziele: string[], breite: numbe
   return { punkte, versuche };
 }
 
+/** Gemini ist eingerichtet, wenn ein Google-Schlüssel (kostenlos aus AI Studio) oder ein OpenRouter-Schlüssel da ist. */
+const geminiDa = (env: Env) => Boolean(env.GEMINI_API_KEY?.trim() || env.OPENROUTER_API_KEY?.trim());
+
+/** Direkt bei Google (generateContent). Liefert den Antworttext und den Grund fürs Ende. */
+async function geminiBeiGoogle(schluessel: string, modell: string, anweisung: string, bild: string): Promise<{ text: string; ende: string; roh: unknown }> {
+  const { typ, daten } = datenUrlTeile(bild);
+  const antwort = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(googleModell(modell))}:generateContent`, {
+    method: "POST",
+    headers: { "x-goog-api-key": schluessel, "content-type": "application/json" },
+    body: JSON.stringify({
+      contents: [{ role: "user", parts: [{ text: anweisung }, { inline_data: { mime_type: typ, data: daten } }] }],
+      generationConfig: { temperature: 0, maxOutputTokens: 12000, responseMimeType: "application/json" },
+    }),
+  });
+  if (!antwort.ok) throw new Error(`HTTP ${antwort.status}: ${(await antwort.text()).slice(0, 300)}`);
+  const roh = (await antwort.json()) as unknown;
+  return { ...googleAntwortText(roh), roh };
+}
+
+/** Über OpenRouter (bezahlt, ein Schlüssel für viele Modelle). */
+async function geminiBeiOpenRouter(schluessel: string, modell: string, anweisung: string, bild: string): Promise<{ text: string; ende: string; roh: unknown }> {
+  const antwort = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: { authorization: `Bearer ${schluessel}`, "content-type": "application/json" },
+    body: JSON.stringify({
+      model: modell,
+      temperature: 0,
+      max_tokens: 12000,
+      // Zählen profitiert vom Nachdenken; "low" würde fast nichts denken, "high" kostet deutlich mehr
+      reasoning: { effort: "medium" },
+      response_format: { type: "json_object" },
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: anweisung },
+            { type: "image_url", image_url: { url: bild } },
+          ],
+        },
+      ],
+    }),
+  });
+  if (!antwort.ok) throw new Error(`HTTP ${antwort.status}: ${(await antwort.text()).slice(0, 300)}`);
+  const roh = (await antwort.json()) as { choices?: { message?: { content?: string }; finish_reason?: string }[] };
+  return { text: roh.choices?.[0]?.message?.content ?? "", ende: roh.choices?.[0]?.finish_reason ?? "?", roh };
+}
+
 async function mitGemini(env: Env, bild: string, ziele: string[]): Promise<Ergebnis> {
   const start = Date.now();
   const modell = env.GEMINI_MODELL?.trim() || GEMINI_STANDARD;
   const anweisung = geminiAnweisung(ziele);
-  let antwort: Response;
+  const google = env.GEMINI_API_KEY?.trim();
+  const weg = google ? "Google" : "OpenRouter";
+  let r: { text: string; ende: string; roh: unknown };
   try {
-    antwort = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: { authorization: `Bearer ${env.OPENROUTER_API_KEY!.trim()}`, "content-type": "application/json" },
-      body: JSON.stringify({
-        model: modell,
-        temperature: 0,
-        max_tokens: 12000,
-        // Zählen profitiert vom Nachdenken; "low" würde fast nichts denken, "high" kostet deutlich mehr
-        reasoning: { effort: "medium" },
-        response_format: { type: "json_object" },
-        messages: [
-          {
-            role: "user",
-            content: [
-              { type: "text", text: anweisung },
-              { type: "image_url", image_url: { url: bild } },
-            ],
-          },
-        ],
-      }),
-    });
+    r = google
+      ? await geminiBeiGoogle(google, modell, anweisung, bild)
+      : await geminiBeiOpenRouter(env.OPENROUTER_API_KEY!.trim(), modell, anweisung, bild);
   } catch (err) {
-    kiFehler(fehlerText(err), "Gemini");
+    kiFehler(fehlerText(err), `Gemini (${weg})`);
   }
-  if (!antwort.ok) kiFehler(`HTTP ${antwort.status}: ${(await antwort.text()).slice(0, 300)}`, "Gemini");
-  const daten = (await antwort.json()) as { choices?: { message?: { content?: string }; finish_reason?: string }[] };
-  const inhalt = daten.choices?.[0]?.message?.content ?? "";
-  const versuch: ZaehlVersuch = { ziel: null, gesendet: `${modell} · ${ziele.length} Arten`, punkte: 0, dauerMs: Date.now() - start, antwort: antwortKurz(inhalt || daten) };
+  const versuch: ZaehlVersuch = {
+    ziel: null,
+    gesendet: `${google ? googleModell(modell) : modell} über ${weg} · ${ziele.length} Arten`,
+    punkte: 0,
+    dauerMs: Date.now() - start,
+    antwort: antwortKurz(r.text || r.roh),
+  };
   try {
-    const punkte = geminiPunkte(inhalt, ziele.length);
+    const punkte = geminiPunkte(r.text, ziele.length);
     versuch.punkte = punkte.length;
     return { punkte, versuche: [versuch] };
   } catch (err) {
-    versuch.fehler = `${fehlerText(err)} (finish_reason: ${daten.choices?.[0]?.finish_reason ?? "?"})`;
+    versuch.fehler = `${fehlerText(err)} (Ende: ${r.ende})`;
     console.log("Zählhilfe gemini", JSON.stringify(versuch));
-    kiFehler(versuch.fehler, "Gemini");
+    kiFehler(versuch.fehler, `Gemini (${weg})`);
   }
 }
 
 /** Welche Modelle eingerichtet sind – die Oberfläche bietet nur diese an. */
-zaehlenRouten.get("/modelle", braucht("buchen"), (c) =>
-  c.json({ moondream: Boolean(c.env.AI), gemini: Boolean(c.env.OPENROUTER_API_KEY?.trim()) }),
-);
+zaehlenRouten.get("/modelle", braucht("buchen"), (c) => c.json({ moondream: Boolean(c.env.AI), gemini: geminiDa(c.env) }));
 
 zaehlenRouten.post("/", braucht("buchen"), async (c) => {
   const ich = benutzerVon(c);
   const e = await eingabe(c, zaehlenSchema);
-  if (e.modell === "gemini" && !c.env.OPENROUTER_API_KEY?.trim()) fehler(409, "Gemini ist nicht eingerichtet (OPENROUTER_API_KEY fehlt)");
+  if (e.modell === "gemini" && !geminiDa(c.env)) fehler(409, "Gemini ist nicht eingerichtet (GEMINI_API_KEY oder OPENROUTER_API_KEY fehlt)");
   if (e.modell === "moondream" && !c.env.AI) fehler(409, "Workers AI ist nicht eingerichtet");
   // Schutz vor Endlosschleifen und Kosten: 40 Fotos je Person und Stunde
   await drosseln(c, `zaehlen:${ich.id}`, 40, 60, "Zu viele Zählungen – bitte in einer Stunde erneut versuchen");
