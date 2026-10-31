@@ -9,5 +9,15 @@ export default defineConfig({
       miniflare: { bindings: { NOTFALL_CODE: "test-notfall-code-1234567890" } },
     }),
   ],
-  test: { include: ["tests/**/*.test.ts"], setupFiles: ["./tests/setup.ts"] },
+  test: {
+    include: ["tests/**/*.test.ts"],
+    setupFiles: ["./tests/setup.ts"],
+    deps: {
+      // Der Workers-Pool lädt jede Datei aus node_modules einzeln über Vite nach.
+      // Zod v4 besteht aus über hundert Modulen (inkl. aller Sprachpakete), Hono aus
+      // Dutzenden – das kostete beim ersten Laden je Testdatei 2–3 s. Vorgebündelt
+      // ist es jeweils nur noch ein Modul.
+      optimizer: { ssr: { enabled: true, include: ["zod", "hono"] } },
+    },
+  },
 });
