@@ -2,6 +2,12 @@ import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { zaehlenSchema } from "../../gemeinsam/schemas";
 import {
+  CLOUDFLARE_BILDMODELLE,
+  cloudflareAntwortText,
+  ZAEHL_MODELL_NAME,
+  ZAEHL_MODELLE,
+  type CloudflareBildmodell,
+  type ZaehlModell,
   antwortKurz,
   datenUrlTeile,
   doppeltePunkteEntfernen,
@@ -203,18 +209,70 @@ async function mitGemini(env: Env, bild: string, ziele: string[]): Promise<Ergeb
   }
 }
 
+/**
+ * Ein Bildmodell bei Cloudflare per Chat: dieselbe Anweisung wie bei Gemini (Punkte als JSON, y/x auf 0–1000),
+ * Bild als Daten-URL. Kein eigener Schlüssel – läuft über die Bindung `AI`.
+ */
+async function mitCloudflareModell(ai: Ai, kurz: CloudflareBildmodell, bild: string, ziele: string[]): Promise<Ergebnis> {
+  const start = Date.now();
+  const modell = CLOUDFLARE_BILDMODELLE[kurz];
+  const name = ZAEHL_MODELL_NAME[kurz];
+  let roh: unknown;
+  try {
+    roh = await ai.run(
+      modell as keyof AiModels,
+      {
+        messages: [
+          {
+            role: "user",
+            content: [
+              { type: "text", text: geminiAnweisung(ziele) },
+              { type: "image_url", image_url: { url: bild } },
+            ],
+          },
+        ],
+        temperature: 0,
+        // Denkende Modelle (Qwen, Kimi) brauchen Platz zum Nachdenken, bevor das JSON kommt
+        max_tokens: 8000,
+      } as never,
+    );
+  } catch (err) {
+    kiFehler(fehlerText(err), name);
+  }
+  const text = cloudflareAntwortText(roh);
+  const versuch: ZaehlVersuch = { ziel: null, gesendet: `${modell} · ${ziele.length} Arten`, punkte: 0, dauerMs: Date.now() - start, antwort: antwortKurz(text || roh) };
+  try {
+    const punkte = geminiPunkte(text, ziele.length);
+    versuch.punkte = punkte.length;
+    return { punkte, versuche: [versuch] };
+  } catch (err) {
+    versuch.fehler = fehlerText(err);
+    console.log("Zählhilfe", kurz, JSON.stringify(versuch));
+    kiFehler(`${versuch.fehler}: ${antwortKurz(text || roh, 200)}`, name);
+  }
+}
+
 /** Welche Modelle eingerichtet sind – die Oberfläche bietet nur diese an. */
-zaehlenRouten.get("/modelle", braucht("buchen"), (c) => c.json({ moondream: Boolean(c.env.AI), gemini: geminiDa(c.env) }));
+zaehlenRouten.get("/modelle", braucht("buchen"), (c) => {
+  const ai = Boolean(c.env.AI);
+  const da = Object.fromEntries(ZAEHL_MODELLE.map((m) => [m, m === "gemini" ? geminiDa(c.env) : ai])) as Record<ZaehlModell, boolean>;
+  return c.json(da);
+});
 
 zaehlenRouten.post("/", braucht("buchen"), async (c) => {
   const ich = benutzerVon(c);
   const e = await eingabe(c, zaehlenSchema);
   if (e.modell === "gemini" && !geminiDa(c.env)) fehler(409, "Gemini ist nicht eingerichtet (GEMINI_API_KEY oder OPENROUTER_API_KEY fehlt)");
-  if (e.modell === "moondream" && !c.env.AI) fehler(409, "Workers AI ist nicht eingerichtet");
+  if (e.modell !== "gemini" && !c.env.AI) fehler(409, "Workers AI ist nicht eingerichtet");
   // Schutz vor Endlosschleifen und Kosten: 40 Fotos je Person und Stunde
   await drosseln(c, `zaehlen:${ich.id}`, 40, 60, "Zu viele Zählungen – bitte in einer Stunde erneut versuchen");
 
-  const r = e.modell === "moondream" ? await mitMoondream(c.env.AI, e.bild, e.ziele, e.breite, e.hoehe) : await mitGemini(c.env, e.bild, e.ziele);
+  const r =
+    e.modell === "gemini"
+      ? await mitGemini(c.env, e.bild, e.ziele)
+      : e.modell === "moondream"
+        ? await mitMoondream(c.env.AI, e.bild, e.ziele, e.breite, e.hoehe)
+        : await mitCloudflareModell(c.env.AI, e.modell, e.bild, e.ziele);
   const ergebnis: ZaehlAntwort = {
     modell: e.modell,
     punkte: doppeltePunkteEntfernen(r.punkte, e.breite, e.hoehe),

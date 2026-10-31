@@ -2,7 +2,7 @@
 import { z } from "zod";
 import { FARBEN, SYMBOLE } from "./kategorien";
 import { ROLLEN } from "./rechte";
-import { MAX_ZIELE, MAX_ZIEL_TEXT } from "./zaehlen";
+import { MAX_ZIELE, MAX_ZIEL_TEXT, ZAEHL_MODELLE } from "./zaehlen";
 
 const text = (max: number) => z.string().trim().min(1, "Pflichtfeld").max(max);
 const optText = (max: number) =>
@@ -187,7 +187,7 @@ export const inventurSchema = z.object({
 
 /** Zählhilfe: Foto (verkleinert, als Data-URL) und die Arten, die gezählt werden sollen */
 export const zaehlenSchema = z.object({
-  modell: z.enum(["moondream", "gemini"]),
+  modell: z.enum(ZAEHL_MODELLE),
   // ≤ 1280 px als JPEG/WebP sind ca. 100–400 KB; 2 MB Base64 lassen Luft
   bild: z
     .string()

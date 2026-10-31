@@ -1,12 +1,50 @@
 // Zählhilfe: Was gezählt wird (Ziele), wie die Antworten der Bildmodelle gelesen werden und wie
 // Punkte und Strichcodes zusammenkommen. Reine Funktionen – von Server, Oberfläche und Tests genutzt.
 
-export type ZaehlModell = "moondream" | "gemini";
+/**
+ * Bildmodelle bei Cloudflare Workers AI, die per Chat (Text + Bild) angesprochen werden.
+ * Alle bekommen dieselbe Anweisung wie Gemini und antworten mit Punkten als JSON.
+ * Laufen über die Bindung `AI` – kein eigener Schlüssel nötig, Gratis-Kontingent 10 000 Neurons/Tag.
+ */
+export const CLOUDFLARE_BILDMODELLE = {
+  llama4: "@cf/meta/llama-4-scout-17b-16e-instruct",
+  qwen: "@cf/qwen/qwen3.8-27b",
+  gemma4: "@cf/google/gemma-4-26b-a4b-it",
+  kimi: "@cf/moonshotai/kimi-k2.6",
+  mistral: "@cf/mistralai/mistral-small-3.1-24b-instruct",
+} as const;
+export type CloudflareBildmodell = keyof typeof CLOUDFLARE_BILDMODELLE;
+
+/** Reihenfolge in der Auswahl; vorgewählt wird das erste eingerichtete (bzw. das zuletzt benutzte). */
+export const ZAEHL_MODELLE = ["gemini", "llama4", "qwen", "gemma4", "kimi", "mistral", "moondream"] as const;
+export type ZaehlModell = (typeof ZAEHL_MODELLE)[number];
+
+export const istCloudflareBildmodell = (m: string): m is CloudflareBildmodell => m in CLOUDFLARE_BILDMODELLE;
 
 export const ZAEHL_MODELL_NAME: Record<ZaehlModell, string> = {
-  moondream: "Moondream (Cloudflare)",
   gemini: "Gemini (Google)",
+  llama4: "Llama 4 Scout (Cloudflare)",
+  qwen: "Qwen 3.8 (Cloudflare)",
+  gemma4: "Gemma 4 (Cloudflare)",
+  kimi: "Kimi K2.6 (Cloudflare)",
+  mistral: "Mistral Small 3.1 (Cloudflare)",
+  moondream: "Moondream (Cloudflare)",
 };
+
+/**
+ * Antworttext eines Chat-Modells bei Cloudflare. Ältere Modelle liefern `response` (Text oder schon
+ * geparstes JSON), neuere das OpenAI-Format `choices[0].message.content` (Text oder Liste von Teilen).
+ */
+export function cloudflareAntwortText(r: unknown): string {
+  const o = (r ?? {}) as Record<string, unknown>;
+  const kern = (o.result && typeof o.result === "object" ? o.result : o) as Record<string, unknown>;
+  if (typeof kern.response === "string") return kern.response;
+  if (kern.response && typeof kern.response === "object") return JSON.stringify(kern.response);
+  const inhalt = (kern.choices as { message?: { content?: unknown } }[] | undefined)?.[0]?.message?.content;
+  if (typeof inhalt === "string") return inhalt;
+  if (Array.isArray(inhalt)) return inhalt.map((t) => (typeof t === "string" ? t : ((t as { text?: string })?.text ?? ""))).join("");
+  return "";
+}
 
 /** Höchstens so viele Arten je Foto – jede Art kostet bei Moondream eine eigene Anfrage. */
 export const MAX_ZIELE = 6;
@@ -237,13 +275,21 @@ export function moondreamPunkte(punkte: { x: number; y: number }[] | null | unde
 
 /** Gemini antwortet mit JSON; Punkte als y/x auf 0–1000 (Googles eigene Konvention). */
 export function geminiPunkte(text: string, anzahlZiele: number): ZaehlPunkt[] {
-  const roh = text.replace(/^```(?:json)?\s*|\s*```$/g, "").trim();
+  // Manche Modelle schreiben Text drumherum oder einen Code-Zaun: erst das Ganze, dann das äußerste {…} bzw. […] versuchen
+  const ohneZaun = text.replace(/```(?:json)?/g, "").trim();
+  const kandidaten = [ohneZaun, ohneZaun.match(/\{[\s\S]*\}/)?.[0], ohneZaun.match(/\[[\s\S]*\]/)?.[0]].filter(Boolean) as string[];
   let daten: unknown;
-  try {
-    daten = JSON.parse(roh);
-  } catch {
-    throw new Error("Antwort des Modells war kein gültiges JSON");
+  let gelesen = false;
+  for (const k of kandidaten) {
+    try {
+      daten = JSON.parse(k);
+      gelesen = true;
+      break;
+    } catch {
+      /* nächster Kandidat */
+    }
   }
+  if (!gelesen) throw new Error("Antwort des Modells war kein gültiges JSON");
   const liste = Array.isArray(daten) ? daten : (daten as { punkte?: unknown })?.punkte;
   if (!Array.isArray(liste)) throw new Error("Antwort des Modells enthielt keine Punkte");
   const punkte: ZaehlPunkt[] = [];

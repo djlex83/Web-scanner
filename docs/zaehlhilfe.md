@@ -16,7 +16,23 @@ Die Arten kommen aus den Stücken, die laut System in diesem Regal liegen: grupp
 
 **Je genauer die Beschreibung, desto besser das Zählen.** Farbe, Form und Verpackung helfen dem Modell mehr als Typnummern.
 
-## Zwei Modelle, umschaltbar
+## Modelle, umschaltbar
+
+In der Zählhilfe wählt man das **Zählmodell** aus einer Liste; die letzte Wahl wird gemerkt. Am besten mehrere mit demselben Foto vergleichen („Anderes Modell oder Arten ändern“ → „Mit demselben Foto zählen“).
+
+**Bildmodelle bei Cloudflare (ohne eigenen Schlüssel):** Diese bekommen per Chat dasselbe Foto und dieselbe Anweisung wie Gemini und antworten mit Punkten als JSON. Sie laufen über die Bindung `AI` und das Gratis-Kontingent (10 000 Neurons/Tag); große Modelle wie Kimi verbrauchen davon mehr.
+
+| Auswahl | Modell bei Cloudflare |
+|---|---|
+| Llama 4 Scout | `@cf/meta/llama-4-scout-17b-16e-instruct` |
+| Qwen 3.8 | `@cf/qwen/qwen3.8-27b` |
+| Gemma 4 | `@cf/google/gemma-4-26b-a4b-it` |
+| Kimi K2.6 | `@cf/moonshotai/kimi-k2.6` |
+| Mistral Small 3.1 | `@cf/mistralai/mistral-small-3.1-24b-instruct` |
+
+Welches davon am besten zählt, ist noch nicht ausprobiert (Stand Oktober 2026). Die Liste steht in `CLOUDFLARE_BILDMODELLE` in `src/gemeinsam/zaehlen.ts`; ein weiteres Modell ist dort eine Zeile plus Name.
+
+**Moondream und Gemini im Vergleich:**
 
 | | Moondream 3.1 | Gemini (empfohlen) |
 |---|---|---|

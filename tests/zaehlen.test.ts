@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   antwortKurz,
+  CLOUDFLARE_BILDMODELLE,
+  cloudflareAntwortText,
   codesZuPunkten,
+  ZAEHL_MODELLE,
   datenUrlTeile,
   doppeltePunkteEntfernen,
   geminiAnweisung,
@@ -81,6 +84,20 @@ describe("Zählhilfe: Antworten der Modelle", () => {
       }),
     ).toEqual({ text: '{"punkte":[]}', ende: "STOP" });
     expect(googleAntwortText({ promptFeedback: { blockReason: "SAFETY" } })).toEqual({ text: "", ende: "SAFETY" });
+  });
+
+  it("Cloudflare-Bildmodelle: Antworttext in altem und neuem Format", () => {
+    expect(cloudflareAntwortText({ response: '{"punkte":[]}' })).toBe('{"punkte":[]}');
+    expect(cloudflareAntwortText({ response: { punkte: [] } })).toBe('{"punkte":[]}');
+    expect(cloudflareAntwortText({ choices: [{ message: { content: "abc" } }] })).toBe("abc");
+    expect(cloudflareAntwortText({ choices: [{ message: { content: [{ type: "text", text: "a" }, { type: "text", text: "b" }] } }] })).toBe("ab");
+    expect(cloudflareAntwortText({ result: { response: "x" } })).toBe("x");
+    expect(cloudflareAntwortText({})).toBe("");
+    expect(Object.keys(CLOUDFLARE_BILDMODELLE).every((k) => (ZAEHL_MODELLE as readonly string[]).includes(k))).toBe(true);
+  });
+
+  it("liest Punkte auch mit Text um das JSON herum", () => {
+    expect(geminiPunkte('Ich sehe drei Gleiter:\n{"punkte":[{"ziel":0,"y":500,"x":300}]}\nFertig.', 1)).toEqual([{ x: 0.3, y: 0.5, ziel: 0 }]);
   });
 
   it("Gemini-Anweisung nummeriert die Arten", () => {
@@ -259,6 +276,17 @@ describe("Zählhilfe: Schnittstelle", () => {
     const r = await admin.post("/zaehlen", { modell: "moondream", bild, breite: 640, hoehe: 480, ziele: ["Koffer"] });
     expect(r.status).toBe(502);
     expect(r.daten.fehler).toMatch(/^Moondream hat nicht geantwortet: ./);
+  });
+
+  it("Cloudflare-Bildmodelle sind über die Bindung verfügbar und werden angenommen", async () => {
+    const admin = await adminEinrichten();
+    const da = (await admin.get("/zaehlen/modelle")).daten;
+    expect(Object.keys(da).sort()).toEqual([...ZAEHL_MODELLE].sort());
+    expect(da.llama4).toBe(true);
+    // Ohne erreichbares Workers AI: Fehler vom Modell statt „nichts gefunden“, aber kein 400 (Modell gültig)
+    const r = await admin.post("/zaehlen", { modell: "llama4", bild, breite: 640, hoehe: 480, ziele: ["Koffer"] });
+    expect(r.status).toBe(502);
+    expect(r.daten.fehler).toMatch(/^Llama 4 Scout \(Cloudflare\) hat nicht geantwortet/);
   });
 
   it("Gemini ohne Schlüssel ist nicht eingerichtet", async () => {

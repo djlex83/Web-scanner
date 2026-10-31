@@ -6,6 +6,7 @@ import {
   MAX_ZIEL_TEXT,
   MAX_ZIELE,
   ZAEHL_MODELL_NAME,
+  ZAEHL_MODELLE,
   zieleVorschlagen,
   type CodeOrt,
   type ZaehlAntwort,
@@ -21,7 +22,7 @@ import { useLaden } from "../lib/hooks";
 import { signalFertig } from "../lib/rueckmeldung";
 import { erkennen } from "../scanner/erkennung";
 import { Blatt } from "../ui/blatt";
-import { Eingabe, Segmente } from "../ui/formular";
+import { Auswahl, Eingabe, Feld } from "../ui/formular";
 import { kl } from "../ui/kl";
 import { Knopf } from "../ui/knopf";
 import { FehlerHinweis, Kreisel } from "../ui/zustand";
@@ -33,6 +34,17 @@ const MAX_SEITE = 1280;
 /** Farbe je Art – kräftig genug für helle und dunkle Fotos, Punkte haben zusätzlich einen weißen Rand. */
 const FARBEN = ["#4f46e5", "#db2777", "#0891b2", "#ea580c", "#65a30d", "#9333ea"];
 const OHNE_ART = "#6b7280";
+
+/** Zuletzt benutztes Zählmodell – damit man beim Vergleichen nicht jedes Mal neu wählen muss. */
+const MODELL_MERKER = "zaehl-modell";
+function gemerktesModell(): ZaehlModell | null {
+  try {
+    const m = localStorage.getItem(MODELL_MERKER);
+    return m && (ZAEHL_MODELLE as readonly string[]).includes(m) ? (m as ZaehlModell) : null;
+  } catch {
+    return null;
+  }
+}
 
 interface Foto {
   url: string;
@@ -90,7 +102,15 @@ export function RegalZaehlen({
 }) {
   const { daten: verfuegbar } = useLaden<Record<ZaehlModell, boolean>>(offen ? "/zaehlen/modelle" : null);
   const [ziele, setZiele] = useState<ZaehlZiel[]>(() => zieleVorschlagen(stuecke));
-  const [modell, setModell] = useState<ZaehlModell>("moondream");
+  const [modell, setModellRoh] = useState<ZaehlModell>(() => gemerktesModell() ?? ZAEHL_MODELLE[0]);
+  const setModell = (m: ZaehlModell) => {
+    setModellRoh(m);
+    try {
+      localStorage.setItem(MODELL_MERKER, m);
+    } catch {
+      /* privater Modus */
+    }
+  };
   const [foto, setFoto] = useState<Foto | null>(null);
   const [ergebnis, setErgebnis] = useState<{ ziele: ZaehlZiel[]; punkte: ZaehlPunkt[]; modell: ZaehlModell; diagnose: ZaehlDiagnose | null } | null>(null);
   const [laeuft, setLaeuft] = useState<string | null>(null);
@@ -107,11 +127,11 @@ export function RegalZaehlen({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vorschlag]);
 
-  // Nicht eingerichtetes Modell nicht vorwählen
+  // Nicht eingerichtetes Modell nicht vorwählen: dann das erste eingerichtete in der Reihenfolge der Liste
   useEffect(() => {
     if (verfuegbar && !verfuegbar[modell]) {
-      const anderes: ZaehlModell = modell === "moondream" ? "gemini" : "moondream";
-      if (verfuegbar[anderes]) setModell(anderes);
+      const erstes = ZAEHL_MODELLE.find((m) => verfuegbar[m]);
+      if (erstes) setModellRoh(erstes);
     }
   }, [verfuegbar, modell]);
 
@@ -241,9 +261,20 @@ export function RegalZaehlen({
     />
   );
 
-  const modellOptionen = (["moondream", "gemini"] as const)
-    .filter((m) => !verfuegbar || verfuegbar[m])
-    .map((m) => ({ wert: m, text: m === "moondream" ? "Moondream" : "Gemini" }));
+  const modellOptionen = ZAEHL_MODELLE.filter((m) => !verfuegbar || verfuegbar[m]);
+  const modellWahl = modellOptionen.length > 1 && (
+    <Feld beschriftung="Zählmodell" hinweis="Bei Cloudflare ohne eigenen Schlüssel. Ruhig mehrere mit demselben Foto vergleichen.">
+      {(p) => (
+        <Auswahl {...p} value={modell} onChange={(ev) => setModell(ev.target.value as ZaehlModell)}>
+          {modellOptionen.map((m) => (
+            <option key={m} value={m}>
+              {ZAEHL_MODELL_NAME[m]}
+            </option>
+          ))}
+        </Auswahl>
+      )}
+    </Feld>
+  );
 
   const zieleBearbeiten = (
     <div className="space-y-2.5">
@@ -299,10 +330,10 @@ export function RegalZaehlen({
               entfernt man durch Tippen.
             </p>
             {zieleBearbeiten}
-            {modellOptionen.length > 1 && <Segmente beschriftung="Modell" wert={modell} aendern={setModell} optionen={modellOptionen} />}
-            {verfuegbar && !verfuegbar.moondream && !verfuegbar.gemini && <FehlerHinweis text="Kein Zählmodell eingerichtet" />}
+            {modellWahl}
+            {verfuegbar && modellOptionen.length === 0 && <FehlerHinweis text="Kein Zählmodell eingerichtet" />}
             <p className="text-[12px] text-gedaempft">
-              Das Foto wird zum Zählen an {modell === "gemini" ? "Google (über OpenRouter)" : "Cloudflare Workers AI"} geschickt und nicht gespeichert.
+              Das Foto wird zum Zählen an {modell === "gemini" ? "Google" : "Cloudflare Workers AI"} geschickt und nicht gespeichert.
             </p>
             {foto && (
               <Knopf art="primaer" groesse="l" breit symbol={<RefreshCw className="size-5" />} onClick={() => void zaehlen(foto, modell)}>
@@ -417,21 +448,9 @@ export function RegalZaehlen({
                   {uebernommen ? "Übernommen" : `${anzahl(new Set(foto.codes.map((c) => c.code)).size, "gelesenen Code", "gelesene Codes")} übernehmen`}
                 </Knopf>
               )}
-              {modellOptionen.length > 1 && (
-                <Knopf
-                  breit
-                  symbol={<RefreshCw className="size-5" />}
-                  onClick={() => {
-                    const anderes: ZaehlModell = ergebnis.modell === "moondream" ? "gemini" : "moondream";
-                    setModell(anderes);
-                    void zaehlen(foto, anderes);
-                  }}
-                >
-                  Mit {ergebnis.modell === "moondream" ? "Gemini" : "Moondream"} nochmal zählen
-                </Knopf>
-              )}
-              <Knopf breit art="leise" onClick={() => setErgebnis(null)}>
-                Arten ändern
+              {/* Zurück zur Auswahl – Foto bleibt, dort „Mit demselben Foto zählen“ */}
+              <Knopf breit symbol={<RefreshCw className="size-5" />} onClick={() => setErgebnis(null)}>
+                {modellOptionen.length > 1 ? "Anderes Modell oder Arten ändern" : "Arten ändern"}
               </Knopf>
               {fotoKnoepfe(true)}
             </div>
