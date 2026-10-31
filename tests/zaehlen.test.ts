@@ -2,16 +2,18 @@ import { describe, expect, it } from "vitest";
 import {
   antwortKurz,
   codesZuPunkten,
-  datenUrlZuBytes,
   doppeltePunkteEntfernen,
   geminiAnweisung,
   geminiPunkte,
   MAX_ZIELE,
   moondreamAntwortFehler,
+  moondreamAntwortPunkte,
+  moondreamFrage,
   moondreamKandidaten,
   moondreamPunkte,
   moondreamRohpunkte,
   moondreamStromLesen,
+  textPunkte,
   zieleVorschlagen,
 } from "../src/gemeinsam/zaehlen";
 import { adminEinrichten, Client } from "./hilfen";
@@ -122,11 +124,33 @@ describe("Zählhilfe: Moondream robust lesen", () => {
     expect(() => moondreamStromLesen("data: [DONE]\n")).toThrow(/ohne Ergebnis/);
   });
 
-  it("wandelt die Daten-URL in rohe Bytes um", () => {
-    // "/9j/4AAQ" ist der Anfang jedes JPEGs: FF D8 FF E0 00 10
-    expect([...datenUrlZuBytes("data:image/jpeg;base64,/9j/4AAQ")]).toEqual([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]);
-    expect([...datenUrlZuBytes("SGFsbG8=")]).toEqual([72, 97, 108, 108, 111]);
-    expect(() => datenUrlZuBytes("data:image/jpeg;base64,%%%")).toThrow();
+  it("liest Punkte aus dem Antworttext der Frage, auch mit Code-Zaun oder Text drumherum", () => {
+    expect(textPunkte('{"points":[{"x":0.2,"y":0.3},{"x":0.7,"y":0.8}]}')).toEqual([
+      { x: 0.2, y: 0.3 },
+      { x: 0.7, y: 0.8 },
+    ]);
+    expect(textPunkte('Here you go:\n```json\n{"points":[{"x":0.5,"y":0.5}]}\n```')).toEqual([{ x: 0.5, y: 0.5 }]);
+    expect(textPunkte("[[0.1,0.9]]")).toEqual([{ x: 0.1, y: 0.9 }]);
+    expect(textPunkte('{"points":[]}')).toEqual([]);
+    expect(textPunkte("I cannot see any scissors.")).toEqual([]);
+    expect(moondreamFrage("scissors")).toContain("every single visible scissors");
+  });
+
+  it("nimmt Punkte aus Antwort, sonst aus dem Nachdenken des Modells", () => {
+    expect(moondreamAntwortPunkte({ answer: '{"points":[{"x":0.4,"y":0.6}]}', finish_reason: "stop" })).toEqual([{ x: 0.4, y: 0.6 }]);
+    expect(
+      moondreamAntwortPunkte({
+        answer: "There are two.",
+        finish_reason: "stop",
+        reasoning: { text: "…", grounding: [{ start_idx: 0, end_idx: 5, points: [[0.1, 0.2], [0.3, 0.4]] }, { points: [{ x: 0.5, y: 0.6 }] }] },
+      }),
+    ).toEqual([
+      { x: 0.1, y: 0.2 },
+      { x: 0.3, y: 0.4 },
+      { x: 0.5, y: 0.6 },
+    ]);
+    expect(moondreamAntwortPunkte({ answer: "none", reasoning: { grounding: [] } })).toEqual([]);
+    expect(moondreamAntwortPunkte({ points: [{ x: 0.9, y: 0.1 }] })).toEqual([{ x: 0.9, y: 0.1 }]);
   });
 
   it("erkennt, ob das Modell überhaupt gerechnet hat", () => {

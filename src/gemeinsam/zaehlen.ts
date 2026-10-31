@@ -90,18 +90,51 @@ export function moondreamKandidaten(englisch: string, original = ""): string[] {
   return [...new Set([voll, kurz, deutsch].filter(Boolean))];
 }
 
+/** Frage an Moondream (Aufgabe `query`): jedes Exemplar mit einem Punkt, Antwort nur als JSON. */
+export function moondreamFrage(target: string): string {
+  return [
+    `Find every single visible ${target} in this image. Count each physical item exactly once, also if partly hidden.`,
+    'Answer ONLY with JSON in this form: {"points":[{"x":0.5,"y":0.5}]}',
+    "x and y are the center of each item, normalized from 0 to 1 (0,0 = top left). If there is none, answer {\"points\":[]}.",
+  ].join("\n");
+}
+
+type Roh = { x: number; y: number };
+const alsPunkt = (p: unknown): Roh =>
+  Array.isArray(p) ? { x: Number(p[0]), y: Number(p[1]) } : { x: Number((p as { x?: unknown })?.x), y: Number((p as { y?: unknown })?.y) };
+const gueltig = (p: Roh) => Number.isFinite(p.x) && Number.isFinite(p.y);
+
+/** Punkte aus dem Antworttext: JSON-Objekt mit `points`, nackte Liste, auch in Code-Zaun oder mit Text drumherum. */
+export function textPunkte(text: string): Roh[] {
+  const ohneZaun = text.replace(/```(?:json)?/g, "");
+  const kandidaten = [ohneZaun.trim(), ohneZaun.match(/\{[\s\S]*\}/)?.[0], ohneZaun.match(/\[[\s\S]*\]/)?.[0]].filter(Boolean) as string[];
+  for (const k of kandidaten) {
+    try {
+      const d = JSON.parse(k) as unknown;
+      const liste = Array.isArray(d) ? d : (d as { points?: unknown })?.points;
+      if (Array.isArray(liste)) return liste.map(alsPunkt).filter(gueltig);
+    } catch {
+      /* nächster Kandidat */
+    }
+  }
+  return [];
+}
+
 /**
- * Base64-Daten-URL in rohe Bytes. Moondream bei Cloudflare nimmt das Bild nur als Byte-Array an –
- * eine Adresse oder Daten-URL als Zeichenkette ergibt stillschweigend eine leere Antwort `{}`
- * (Chat-Pfad sagt es offen: „Type mismatch of '/image', 'string' not in 'array','binary'“).
+ * Alle Punkte einer Moondream-Antwort: direkt (`points`), aus dem JSON im Antworttext (`answer`)
+ * und – wenn beides leer ist – die Punkte, die das Modell beim Nachdenken setzt (`reasoning.grounding[].points`).
  */
-export function datenUrlZuBytes(datenUrl: string): Uint8Array {
-  const komma = datenUrl.indexOf(",");
-  const b64 = komma >= 0 ? datenUrl.slice(komma + 1) : datenUrl;
-  const bin = atob(b64.replace(/\s+/g, ""));
-  const bytes = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-  return bytes;
+export function moondreamAntwortPunkte(r: unknown): Roh[] {
+  const direkt = moondreamRohpunkte(r);
+  if (direkt.length) return direkt;
+  const o = (r ?? {}) as Record<string, unknown>;
+  if (typeof o.answer === "string") {
+    const aus = textPunkte(o.answer);
+    if (aus.length) return aus;
+  }
+  const grounding = (o.reasoning as { grounding?: unknown } | null | undefined)?.grounding;
+  if (!Array.isArray(grounding)) return [];
+  return grounding.flatMap((g) => (Array.isArray((g as { points?: unknown })?.points) ? ((g as { points: unknown[] }).points.map(alsPunkt).filter(gueltig)) : []));
 }
 
 /**

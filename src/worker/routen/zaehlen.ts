@@ -3,14 +3,14 @@ import { HTTPException } from "hono/http-exception";
 import { zaehlenSchema } from "../../gemeinsam/schemas";
 import {
   antwortKurz,
-  datenUrlZuBytes,
   doppeltePunkteEntfernen,
   geminiAnweisung,
   geminiPunkte,
   moondreamAntwortFehler,
+  moondreamAntwortPunkte,
+  moondreamFrage,
   moondreamKandidaten,
   moondreamPunkte,
-  moondreamRohpunkte,
   moondreamStromLesen,
   type ZaehlAntwort,
   type ZaehlPunkt,
@@ -65,17 +65,15 @@ async function insEnglische(ai: Ai, text: string): Promise<string> {
 }
 
 /**
- * Wie das Bild an Moondream geht. Ohne Datenstrom liefert Cloudflare bei diesem Modell immer `{}` –
- * das Modell rechnet, aber das Ergebnis wird nicht eingesammelt (Oktober 2026, per curl belegt).
- * Mit `stream: true` kommt das Ergebnis als Server-Sent Events an. Erst als Daten-URL (Text),
- * bei Ablehnung als Byte-Array – die Form, die durchkommt, steht in den Details.
+ * Moondream bei Cloudflare (Stand Oktober 2026, per curl belegt):
+ * - Ohne Datenstrom kommt bei jeder Aufgabe `{}` zurück – das Modell rechnet nicht bzw. nichts wird eingesammelt.
+ * - `point` lehnt den Datenstrom ab („task=point does not support stream=True“).
+ * - `query` mit `stream: true` funktioniert. Also fragen wir nach den Punkten als JSON und nehmen
+ *   im Denkmodus zusätzlich die Punkte, die das Modell selbst setzt (`reasoning.grounding`).
  */
-type BildForm = "text" | "array";
-const BILD_FORMEN: BildForm[] = ["text", "array"];
-
-async function moondreamAufruf(ai: Ai, datenUrl: string, target: string, form: BildForm): Promise<unknown> {
-  const image = form === "text" ? datenUrl : Array.from(datenUrlZuBytes(datenUrl));
-  const strom = (await ai.run(MOONDREAM as keyof AiModels, { task: "point", image, target, max_objects: 300, stream: true } as never)) as unknown;
+async function moondreamAufruf(ai: Ai, bild: string, target: string): Promise<unknown> {
+  const eingabe = { task: "query", image: bild, question: moondreamFrage(target), reasoning: true, temperature: 0, max_tokens: 4000, stream: true };
+  const strom = (await ai.run(MOONDREAM as keyof AiModels, eingabe as never)) as unknown;
   // Die Bindung gibt einen Datenstrom zurück; zur Sicherheit auch ein fertiges Objekt annehmen
   const r = strom instanceof ReadableStream ? moondreamStromLesen(await new Response(strom).text()) : strom;
   const problem = moondreamAntwortFehler(r);
@@ -83,24 +81,12 @@ async function moondreamAufruf(ai: Ai, datenUrl: string, target: string, form: B
   return r;
 }
 
-async function moondreamPunkt(ai: Ai, datenUrl: string, target: string, ziel: number | null, breite: number, hoehe: number) {
+async function moondreamPunkt(ai: Ai, bild: string, target: string, ziel: number | null, breite: number, hoehe: number) {
   const start = Date.now();
-  const fehlerJeForm: string[] = [];
   try {
-    let r: unknown;
-    let genommen: BildForm = BILD_FORMEN[0]!;
-    for (const form of BILD_FORMEN) {
-      try {
-        r = await moondreamAufruf(ai, datenUrl, target, form);
-        genommen = form;
-        break;
-      } catch (err) {
-        fehlerJeForm.push(`${form}: ${fehlerText(err)}`);
-        if (form === BILD_FORMEN[BILD_FORMEN.length - 1]) throw new Error(fehlerJeForm.join(" | "));
-      }
-    }
-    const punkte = moondreamPunkte(moondreamRohpunkte(r), ziel ?? 0, breite, hoehe).map((p) => ({ ...p, ziel }));
-    const versuch: ZaehlVersuch = { ziel, gesendet: `${target} (${genommen})`, punkte: punkte.length, dauerMs: Date.now() - start, antwort: antwortKurz(r) };
+    const r = await moondreamAufruf(ai, bild, target);
+    const punkte = moondreamPunkte(moondreamAntwortPunkte(r), ziel ?? 0, breite, hoehe).map((p) => ({ ...p, ziel }));
+    const versuch: ZaehlVersuch = { ziel, gesendet: target, punkte: punkte.length, dauerMs: Date.now() - start, antwort: antwortKurz(r) };
     return { punkte, versuch };
   } catch (err) {
     const versuch: ZaehlVersuch = { ziel, gesendet: target, punkte: 0, dauerMs: Date.now() - start, fehler: fehlerText(err) };

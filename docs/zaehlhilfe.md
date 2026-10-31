@@ -45,7 +45,8 @@ Ist kein `OPENROUTER_API_KEY` gesetzt, zeigt die App nur Moondream an. Optional 
     -H "Authorization: Bearer $CF_TOKEN" -H "Content-Type: application/json" \
     -d '{"task":"query","question":"What is the capital of France?","stream":true}'
   ```
-- **Bildform:** zuerst als Daten-URL (Text), bei Ablehnung als Byte-Array (`datenUrlZuBytes`). Die genommene Form steht in den Details in Klammern hinter dem Begriff. Ein Versuch mit Binärdaten (`{ body, contentType }`) brachte „image is required“ und ist wieder entfernt.
+- **Frage statt Punkte-Aufgabe:** `point` lehnt den Datenstrom ab („task=point does not support stream=True“). Der Worker nutzt deshalb `query` mit `stream: true` und `reasoning: true`: Die Frage (`moondreamFrage`) verlangt die Mittelpunkte aller Exemplare als JSON auf 0–1. Punkte kommen aus dem JSON im Antworttext (`textPunkte`) oder, falls dort keine stehen, aus den Punkten, die das Modell beim Nachdenken setzt (`reasoning.grounding`). Das Bild geht als Daten-URL (Text) mit. In den Technischen Details steht die Antwort des Modells – daran sieht man, ob es JSON geliefert hat.
+- **Sackgassen (nicht wieder versuchen):** Bild als Byte-Array (wird als Text abgelehnt), Binärdaten `{ body, contentType }` („image is required“), Chat-Pfad mit Bildadresse („only supports base64“).
 
 ## Schutz
 
