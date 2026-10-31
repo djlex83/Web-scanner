@@ -22,15 +22,16 @@ In der Zählhilfe wählt man das **Zählmodell** aus einer Liste; die letzte Wah
 
 **Bildmodelle bei Cloudflare (ohne eigenen Schlüssel):** Diese bekommen per Chat dasselbe Foto und dieselbe Anweisung wie Gemini und antworten mit Punkten als JSON. Sie laufen über die Bindung `AI` und das Gratis-Kontingent (10 000 Neurons/Tag); große Modelle wie Kimi verbrauchen davon mehr.
 
-| Auswahl | Modell bei Cloudflare |
-|---|---|
-| Llama 4 Scout | `@cf/meta/llama-4-scout-17b-16e-instruct` |
-| Qwen 3.8 | `@cf/qwen/qwen3.8-27b` |
-| Gemma 4 | `@cf/google/gemma-4-26b-a4b-it` |
-| Kimi K2.6 | `@cf/moonshotai/kimi-k2.6` |
-| Mistral Small 3.1 | `@cf/mistralai/mistral-small-3.1-24b-instruct` |
+| Auswahl | Modell bei Cloudflare | Erster Test |
+|---|---|---|
+| **Qwen 3.8** (Voreinstellung) | `@cf/qwen/qwen3.8-27b` | 3 von 3, Punkte genau auf den Teilen |
+| Llama 4 Scout | `@cf/meta/llama-4-scout-17b-16e-instruct` | 3 von 3, Punkte ungenauer |
+| Gemma 4 | `@cf/google/gemma-4-26b-a4b-it` | – |
+| Kimi K2.6 | `@cf/moonshotai/kimi-k2.6` | – |
+| Mistral Small 3.1 | `@cf/mistralai/mistral-small-3.1-24b-instruct` | – |
+| Moondream 3.1 | `@cf/moondream/moondream3.1-9B-A2B` | nichts gefunden |
 
-Welches davon am besten zählt, ist noch nicht ausprobiert (Stand Oktober 2026). Die Liste steht in `CLOUDFLARE_BILDMODELLE` in `src/gemeinsam/zaehlen.ts`; ein weiteres Modell ist dort eine Zeile plus Name.
+Erster Test (Oktober 2026): drei überlappende Möbelgleiter auf einem Tisch, Art „Kunststoff Gleiter“. Ein einzelnes Foto, keine Statistik – bei anderen Teilen kann es anders aussehen. Die Liste steht in `CLOUDFLARE_BILDMODELLE` in `src/gemeinsam/zaehlen.ts`, die Reihenfolge (erstes = Voreinstellung) in `ZAEHL_MODELLE`; ein weiteres Modell ist dort eine Zeile plus Name.
 
 **Moondream und Gemini im Vergleich:**
 

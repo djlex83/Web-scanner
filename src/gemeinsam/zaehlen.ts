@@ -15,16 +15,20 @@ export const CLOUDFLARE_BILDMODELLE = {
 } as const;
 export type CloudflareBildmodell = keyof typeof CLOUDFLARE_BILDMODELLE;
 
-/** Reihenfolge in der Auswahl; vorgewählt wird das erste eingerichtete (bzw. das zuletzt benutzte). */
-export const ZAEHL_MODELLE = ["gemini", "llama4", "qwen", "gemma4", "kimi", "mistral", "moondream"] as const;
+/**
+ * Reihenfolge in der Auswahl; vorgewählt wird das erste eingerichtete (bzw. das zuletzt benutzte).
+ * Qwen zuerst: im ersten Test (Oktober 2026, drei überlappende Möbelgleiter) zählten Qwen und Llama 4
+ * richtig 3, Qwen setzte die Punkte genauer. Moondream fand dort nichts.
+ */
+export const ZAEHL_MODELLE = ["qwen", "llama4", "gemini", "gemma4", "kimi", "mistral", "moondream"] as const;
 export type ZaehlModell = (typeof ZAEHL_MODELLE)[number];
 
 export const istCloudflareBildmodell = (m: string): m is CloudflareBildmodell => m in CLOUDFLARE_BILDMODELLE;
 
 export const ZAEHL_MODELL_NAME: Record<ZaehlModell, string> = {
-  gemini: "Gemini (Google)",
-  llama4: "Llama 4 Scout (Cloudflare)",
   qwen: "Qwen 3.8 (Cloudflare)",
+  llama4: "Llama 4 Scout (Cloudflare)",
+  gemini: "Gemini (Google)",
   gemma4: "Gemma 4 (Cloudflare)",
   kimi: "Kimi K2.6 (Cloudflare)",
   mistral: "Mistral Small 3.1 (Cloudflare)",
