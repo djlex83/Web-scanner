@@ -94,8 +94,9 @@ export function moondreamKandidaten(englisch: string, original = ""): string[] {
 export function moondreamFrage(target: string): string {
   return [
     `Find every single visible ${target} in this image. Count each physical item exactly once, also if partly hidden.`,
-    'Answer ONLY with JSON in this form: {"points":[{"x":0.5,"y":0.5}]}',
-    "x and y are the center of each item, normalized from 0 to 1 (0,0 = top left). If there is none, answer {\"points\":[]}.",
+    "Items of the same kind often lie next to each other, on top of each other or overlap: count each of them separately.",
+    'First count them, then give one point per item. Answer ONLY with JSON in this form: {"count":2,"points":[{"x":0.3,"y":0.5},{"x":0.6,"y":0.5}]}',
+    "x and y are the center of each item, normalized from 0 to 1 (0,0 = top left). There must be exactly as many points as count. If there is none, answer {\"count\":0,\"points\":[]}.",
   ].join("\n");
 }
 
@@ -256,15 +257,18 @@ export function geminiPunkte(text: string, anzahlZiele: number): ZaehlPunkt[] {
 }
 
 /**
- * Doppelte zusammenführen: Liegen zwei Punkte näher als `abstand` (Anteil der Bilddiagonale),
- * ist es dasselbe Teil – etwa weil es unter zwei Arten gefunden wurde. Der erste gewinnt.
+ * Doppelte zusammenführen: Liegen zwei Punkte verschiedener Arten näher als `abstand` (Anteil der
+ * Bilddiagonale), ist es dasselbe Teil, das unter zwei Arten gefunden wurde. Der erste gewinnt.
+ * Punkte derselben Art bleiben immer stehen – das Modell zählt jedes Teil ohnehin einzeln, und
+ * gestapelte oder übereinanderliegende Teile (drei Scheren in einem Fach) liegen nun mal dicht beieinander.
  */
 export function doppeltePunkteEntfernen(punkte: ZaehlPunkt[], breite: number, hoehe: number, abstand = 0.025): ZaehlPunkt[] {
   const diag = Math.hypot(breite, hoehe);
   const grenze = abstand * diag;
   const behalten: ZaehlPunkt[] = [];
   for (const p of punkte) {
-    if (!behalten.some((b) => Math.hypot((b.x - p.x) * breite, (b.y - p.y) * hoehe) < grenze)) behalten.push(p);
+    const doppelt = behalten.some((b) => b.ziel !== p.ziel && Math.hypot((b.x - p.x) * breite, (b.y - p.y) * hoehe) < grenze);
+    if (!doppelt) behalten.push(p);
   }
   return behalten;
 }

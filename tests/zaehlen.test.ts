@@ -180,6 +180,15 @@ describe("Zählhilfe: Punkte und Codes", () => {
     expect(doppeltePunkteEntfernen(punkte, 1000, 1000)).toEqual([punkte[0], punkte[2]]);
   });
 
+  it("lässt dicht beieinanderliegende Teile derselben Art stehen (gestapelte Scheren)", () => {
+    const punkte = [
+      { x: 0.5, y: 0.5, ziel: 0 },
+      { x: 0.505, y: 0.5, ziel: 0 },
+      { x: 0.51, y: 0.505, ziel: 0 },
+    ];
+    expect(doppeltePunkteEntfernen(punkte, 1000, 1000)).toEqual(punkte);
+  });
+
   it("ordnet jeden Code dem nächsten Punkt zu, jeden höchstens einmal", () => {
     const punkte = [
       { x: 0.2, y: 0.2, ziel: 0 },
