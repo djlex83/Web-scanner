@@ -2,7 +2,7 @@
 
 In **Inventur → Regal → „Regal per Foto zählen“** nimmt man ein Foto vom Regal oder Fach auf. Ein Bildmodell setzt **auf jedes gefundene Teil einen Punkt**. Die Punkte sind nummeriert und haben die Farbe ihrer Art.
 
-**Foto aufnehmen oder Bild hochladen:** Am Handy öffnet „Foto aufnehmen“ direkt die Kamera, „Bild hochladen“ die Fotos. Am Rechner landen beide im Dateidialog; in Safari am Mac bietet der zusätzlich „Foto aufnehmen“ an und kann dafür ein iPhone in der Nähe als Kamera nehmen (Kamera-Übergabe von Apple). In anderen Browsern am Rechner lädt man ein Foto vom Rechner oder per AirDrop hoch.
+**Foto aufnehmen oder Bild hochladen:** Am Handy öffnet „Foto aufnehmen“ direkt die Kamera, „Bild hochladen“ die Fotos. Am Rechner (Maus, kein Touch) öffnet „Foto aufnehmen“ eine eigene Kamera-Ansicht mit Auswahl der Kamera (`KameraAufnahme.tsx`): Ein iPhone oder iPad in der Nähe erscheint am Mac als Kamera (Kamera-Übergabe von Apple, in jedem Browser) und wird automatisch bevorzugt; die Wahl wird gemerkt. Voraussetzung: iPhone entsperrt in der Nähe, auf dem iPhone *Einstellungen → Allgemein → AirPlay & Übergabe → Kamera-Übergabe* an, gleiche Apple-ID, WLAN und Bluetooth an. „Bild hochladen“ nimmt eine Datei, z. B. per AirDrop vom iPhone.
 
 - **Korrigieren:** Tippen auf einen Punkt entfernt ihn. Art in der Liste antippen, dann ins Foto tippen, setzt einen fehlenden Punkt dieser Art. Die Zahlen laufen mit.
 - **Vergleich:** Je Art „gezählt / laut System“, grün bei Gleichstand.

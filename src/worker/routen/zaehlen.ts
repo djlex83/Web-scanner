@@ -35,11 +35,19 @@ export const zaehlenRouten = new Hono<AppEnv>();
 
 const fehlerText = (err: unknown) => (err instanceof Error ? err.message : String(err)).slice(0, 300);
 
+/**
+ * Fehler des Modells in eine Meldung übersetzen. Der Originaltext bleibt immer dran,
+ * damit man im Zweifel sieht, was Cloudflare bzw. OpenRouter wirklich gesagt haben.
+ */
 function kiFehler(text: string, modell: string): never {
-  if (/neuron|4006|daily|quota|rate limit|429/i.test(text)) {
-    throw new HTTPException(429, { message: `${modell}: Tageskontingent aufgebraucht – bitte morgen erneut oder das andere Modell nehmen` });
+  const original = text.replace(/\s+/g, " ").trim().slice(0, 240);
+  if (/neuron|4006|daily|quota|exceeded|insufficient/i.test(text)) {
+    throw new HTTPException(429, { message: `${modell}: Kontingent aufgebraucht – bitte morgen erneut oder das andere Modell nehmen (${original})` });
   }
-  throw new HTTPException(502, { message: `${modell} hat nicht geantwortet: ${text}` });
+  if (/rate limit|too many|429/i.test(text)) {
+    throw new HTTPException(429, { message: `${modell}: zu viele Anfragen kurz hintereinander – bitte eine Minute warten (${original})` });
+  }
+  throw new HTTPException(502, { message: `${modell} hat nicht geantwortet: ${original}` });
 }
 
 /** Moondream versteht englische Begriffe am besten; deutsche Texte vorher übersetzen (Fehlschlag = Original). */
